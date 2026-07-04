@@ -1,0 +1,118 @@
+{
+  "entities": {
+    "users": {
+      "title": "Users",
+      "description": "Teacher user profiles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "subjects": {
+      "title": "Subjects",
+      "description": "Course and subject management with grade weighting",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "classes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "scoreWeights": {
+          "type": "object",
+          "properties": {
+            "formative": { "type": "number" },
+            "midterm": { "type": "number" },
+            "final": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "code", "name"]
+    },
+    "students": {
+      "title": "Students",
+      "description": "Student roster with class and student ID for QR generation",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "prefix": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "classRoom": { "type": "string" },
+        "number": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "studentId", "firstName", "lastName", "classRoom"]
+    },
+    "assignments": {
+      "title": "Assignments",
+      "description": "Assignments and tasks per subject and class",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "maxScore": { "type": "number" },
+        "category": { "type": "string" },
+        "assignedClasses": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "dueDate": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "subjectId", "title", "maxScore"]
+    },
+    "submissions": {
+      "title": "Submissions",
+      "description": "Student work grading and inspection status",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "assignmentId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "classRoom": { "type": "string" },
+        "score": { "type": "number" },
+        "status": { "type": "string" },
+        "note": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "subjectId", "assignmentId", "studentId", "status"]
+    },
+    "lineConfigs": {
+      "title": "Line Notification Configurations",
+      "description": "Line Messaging API token and room settings per teacher/classroom",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "classRoom": { "type": "string" },
+        "channelAccessToken": { "type": "string" },
+        "targetUserId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "classRoom"]
+    },
+    "academicYears": {
+      "title": "Academic Years",
+      "description": "Academic years configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "year": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["year"]
+    }
+  }
+}

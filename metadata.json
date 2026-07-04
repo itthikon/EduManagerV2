@@ -1,0 +1,10 @@
+{
+  "name": "ระบบจัดการคะแนนและตรวจงานนักเรียน",
+  "description": "ระบบสะสมคะแนน ตรวจงานด้วย QR Code จัดการรายวิชา และส่งการแจ้งเตือนผ่าน Line",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

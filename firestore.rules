@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User profile rule
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+    
+    // Subjects rule
+    match /subjects/{subjectId} {
+      allow read, write: if true;
+    }
+    
+    // Students rule
+    match /students/{studentDocId} {
+      allow read, write: if true;
+    }
+    
+    // Assignments rule
+    match /assignments/{assignmentId} {
+      allow read, write: if true;
+    }
+    
+    // Submissions rule
+    match /submissions/{submissionId} {
+      allow read, write: if true;
+    }
+    
+    // Line Configurations rule
+    match /lineConfigs/{configId} {
+      allow read, write: if true;
+    }
+
+    // Academic Years rule
+    match /academicYears/{yearId} {
+      allow read, write: if true;
+    }
+  }
+}
+
