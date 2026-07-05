@@ -160,6 +160,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
           term: term.trim() || "1",
           academicYear: academicYear.trim() || "2568",
         });
+        if (classRoom.trim()) {
+          setSelectedClass(classRoom.trim());
+        }
       }
       setIsModalOpen(false);
     } catch (err: any) {
@@ -289,7 +292,7 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
       const parsed: Omit<Student, "id" | "createdAt">[] = [];
       const targetTerm = selectedTerm === "ALL" ? "1" : selectedTerm;
       const targetYr = selectedAcademicYear === "ALL" ? "2568" : selectedAcademicYear;
-      const fallbackClass = selectedClass !== "ALL" ? selectedClass : allClasses[0] || "ม.4/1";
+      const fallbackClass = selectedClass !== "ALL" ? selectedClass : (allClasses.find((c) => c !== "ALL") || "ม.1/1");
 
       for (const sheetName of workbook.SheetNames) {
         const worksheet = workbook.Sheets[sheetName];
@@ -526,7 +529,7 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
           let sId = "";
           let fullName = "";
           let num = listToImport.length + 1;
-          let cls = selectedClass !== "ALL" ? selectedClass : allClasses[0] || "ม.4/1";
+          let cls = selectedClass !== "ALL" ? selectedClass : (allClasses.find((c) => c !== "ALL") || "ม.1/1");
 
           if (/^\d+$/.test(parts[0]) && parts.length >= 3 && !/^\d{4,}$/.test(parts[0])) {
             num = Number(parts[0]) || num;
@@ -591,6 +594,15 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
       setBatchText("");
       setParsedPreview([]);
       setImportedFileName("");
+
+      if (listToImport.length > 0) {
+        const importedClasses = Array.from(new Set(listToImport.map((s) => s.classRoom).filter(Boolean)));
+        if (importedClasses.length === 1) {
+          setSelectedClass(importedClasses[0]);
+        } else {
+          setSelectedClass("ALL");
+        }
+      }
     } catch (err) {
       console.error(err);
       alert("เกิดข้อผิดพลาดในการเพิ่มข้อมูลนักเรียน");

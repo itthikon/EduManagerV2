@@ -14,6 +14,7 @@ import {
   getDocs,
   query,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType, SUPER_ADMIN_UID } from "./lib/firebase";
 import {
@@ -313,13 +314,9 @@ export default function App() {
 
     const currentTeacherId = user?.uid || "demo";
 
-    // 1. Subjects Listener (User Isolated)
-    const subjectsQuery = query(
-      collection(db, "subjects"),
-      where("teacherId", "==", currentTeacherId)
-    );
+    // 1. Subjects Listener
     const unsubSubjects = onSnapshot(
-      subjectsQuery,
+      collection(db, "subjects"),
       (snapshot) => {
         const list: Subject[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -332,13 +329,9 @@ export default function App() {
       }
     );
 
-    // 2. Students Listener (User Isolated)
-    const studentsQuery = query(
-      collection(db, "students"),
-      where("teacherId", "==", currentTeacherId)
-    );
+    // 2. Students Listener
     const unsubStudents = onSnapshot(
-      studentsQuery,
+      collection(db, "students"),
       (snapshot) => {
         const list: Student[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -351,13 +344,9 @@ export default function App() {
       }
     );
 
-    // 3. Assignments Listener (User Isolated)
-    const assignmentsQuery = query(
-      collection(db, "assignments"),
-      where("teacherId", "==", currentTeacherId)
-    );
+    // 3. Assignments Listener
     const unsubAssignments = onSnapshot(
-      assignmentsQuery,
+      collection(db, "assignments"),
       (snapshot) => {
         const list: Assignment[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -370,13 +359,9 @@ export default function App() {
       }
     );
 
-    // 4. Submissions Listener (User Isolated)
-    const submissionsQuery = query(
-      collection(db, "submissions"),
-      where("teacherId", "==", currentTeacherId)
-    );
+    // 4. Submissions Listener
     const unsubSubmissions = onSnapshot(
-      submissionsQuery,
+      collection(db, "submissions"),
       (snapshot) => {
         const list: Submission[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -389,13 +374,9 @@ export default function App() {
       }
     );
 
-    // 5. LineConfigs Listener (User Isolated)
-    const lineQuery = query(
-      collection(db, "lineConfigs"),
-      where("teacherId", "==", currentTeacherId)
-    );
+    // 5. LineConfigs Listener
     const unsubLine = onSnapshot(
-      lineQuery,
+      collection(db, "lineConfigs"),
       (snapshot) => {
         const list: LineConfig[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -542,11 +523,13 @@ export default function App() {
   // Filtered lists according to selectedAcademicYear and selectedTerm (plus teacherId check)
   const filterByTermAndYear = <T extends { academicYear?: string; term?: string; teacherId?: string }>(items: T[]) => {
     return items.filter((item) => {
-      if (user?.uid && item.teacherId && item.teacherId !== user.uid) {
+      if (user?.uid && item.teacherId && item.teacherId !== user.uid && item.teacherId !== "demo" && item.teacherId !== "") {
         return false;
       }
-      const matchYear = selectedAcademicYear === "ALL" || (item.academicYear || "2568") === selectedAcademicYear;
-      const matchTerm = selectedTerm === "ALL" || (item.term || "1") === selectedTerm;
+      const itemYr = item.academicYear || "2568";
+      const itemTerm = item.term || "1";
+      const matchYear = selectedAcademicYear === "ALL" || !item.academicYear || itemYr === selectedAcademicYear;
+      const matchTerm = selectedTerm === "ALL" || !item.term || itemTerm === selectedTerm;
       return matchYear && matchTerm;
     });
   };
@@ -594,11 +577,12 @@ export default function App() {
 
   // CRUD Handler - Students
   const handleAddStudent = async (data: Omit<Student, "id" | "createdAt">) => {
+    const currentTeacher = user?.uid || "demo";
     const newId = `st_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const newDoc: Student = {
       ...data,
       id: newId,
-      teacherId: user?.uid || "demo",
+      teacherId: data.teacherId || currentTeacher,
       createdAt: new Date().toISOString(),
     };
 
@@ -611,20 +595,36 @@ export default function App() {
   };
 
   const handleBatchAddStudents = async (list: Omit<Student, "id" | "createdAt">[]) => {
+    const currentTeacher = user?.uid || "demo";
     const newDocs: Student[] = list.map((item, idx) => ({
       ...item,
-      id: `st_${Date.now()}_${idx}`,
-      teacherId: user?.uid || "demo",
+      id: `st_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+      teacherId: item.teacherId || currentTeacher,
       createdAt: new Date().toISOString(),
     }));
 
-    setStudents((prev) => [...prev, ...newDocs]);
-    for (const docData of newDocs) {
-      try {
-        await setDoc(doc(db, "students", docData.id), docData);
-      } catch (e) {
-        console.error("Firestore batch error:", e);
-      }
+    setStudents((prev) => {
+      const existingIds = new Set(prev.map((s) => s.id));
+      const filteredNew = newDocs.filter((d) => !existingIds.has(d.id));
+      return [...prev, ...filteredNew];
+    });
+
+    try {
+      const batch = writeBatch(db);
+      newDocs.forEach((docData) => {
+        const ref = doc(db, "students", docData.id);
+        batch.set(ref, docData);
+      });
+      await batch.commit();
+    } catch (e) {
+      console.error("Firestore writeBatch error:", e);
+      await Promise.all(
+        newDocs.map((docData) =>
+          setDoc(doc(db, "students", docData.id), docData).catch((err) =>
+            console.error("Fallback setDoc error:", err)
+          )
+        )
+      );
     }
   };
 
