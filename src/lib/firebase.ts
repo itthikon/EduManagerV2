@@ -47,6 +47,54 @@ testFirestoreConnection();
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
+export const getAuthErrorMessage = (error: any): { title: string; message: string; code: string; domain: string } => {
+  const code = error?.code || "unknown_error";
+  const currentDomain = typeof window !== "undefined" ? window.location.hostname : "";
+
+  if (code === "auth/unauthorized-domain") {
+    return {
+      code,
+      domain: currentDomain,
+      title: "โดเมนเว็บไซต์นี้ยังไม่ได้รับอนุญาต (Unauthorized Domain)",
+      message: `โดเมน "${currentDomain}" ยังไม่ได้ถูกเพิ่มใน Authorized Domains ของ Firebase Console\n\nวิธีแก้ไข:\n1. เข้าไปที่ Firebase Console (https://console.firebase.google.com/)\n2. ไปที่ Authentication > Settings > Authorized domains\n3. กด 'Add domain' แล้วใส่ "${currentDomain}"`,
+    };
+  }
+
+  if (code === "auth/operation-not-allowed") {
+    return {
+      code,
+      domain: currentDomain,
+      title: "ยังไม่ได้เปิดใช้งาน Google Sign-In ใน Firebase",
+      message: `ระบบเข้าสู่ระบบด้วย Google ยังไม่ได้ถูกเปิดใช้งานใน Firebase Console\n\nวิธีแก้ไข:\n1. ไปที่ Firebase Console > Authentication > Sign-in method\n2. คลิก 'Google' -> สับสวิตช์เปิด 'Enable'\n3. บันทึกข้อมูลและลองใหม่อีกครั้ง`,
+    };
+  }
+
+  if (code === "auth/popup-blocked") {
+    return {
+      code,
+      domain: currentDomain,
+      title: "เบราว์เซอร์บล็อกหน้าต่าง Pop-up",
+      message: `เบราว์เซอร์ของคุณบล็อกหน้าต่างล็อกอินของ Google\n\nวิธีแก้ไข:\n- อนุญาตให้แสดง Pop-up สำหรับเว็บไซต์นี้ หรือใช้เบราว์เซอร์ Chrome/Safari บนคอมพิวเตอร์`,
+    };
+  }
+
+  if (code === "auth/popup-closed-by-user") {
+    return {
+      code,
+      domain: currentDomain,
+      title: "ยกเลิกการเข้าสู่ระบบ",
+      message: "คุณได้ปิดหน้าต่างการเข้าสู่ระบบ Google ก่อนทำรายการเสร็จสมบูรณ์",
+    };
+  }
+
+  return {
+    code,
+    domain: currentDomain,
+    title: "เกิดข้อผิดพลาดในการเข้าสู่ระบบ",
+    message: error?.message || "ไม่สามารถเชื่อมต่อระบบยืนยันตัวตนได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือการตั้งค่า Firebase",
+  };
+};
+
 export const loginWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);

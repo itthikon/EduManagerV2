@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   BookOpen,
   Users,
@@ -10,8 +10,14 @@ import {
   GraduationCap,
   Calendar,
   Settings2,
+  AlertTriangle,
+  X,
+  Copy,
+  Check,
+  ExternalLink,
+  Globe,
 } from "lucide-react";
-import { loginWithGoogle, logoutUser } from "../lib/firebase";
+import { loginWithGoogle, logoutUser, getAuthErrorMessage } from "../lib/firebase";
 import { UserProfile } from "../types";
 
 interface NavbarProps {
@@ -39,6 +45,35 @@ export const Navbar: React.FC<NavbarProps> = ({
   academicYears,
   onOpenYearManager,
 }) => {
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [authError, setAuthError] = useState<{
+    title: string;
+    message: string;
+    code: string;
+    domain: string;
+  } | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState(false);
+
+  const handleLogin = async () => {
+    setIsLoggingIn(true);
+    setAuthError(null);
+    try {
+      await loginWithGoogle();
+    } catch (err: any) {
+      console.error("Login Error Catch:", err);
+      const errDetail = getAuthErrorMessage(err);
+      setAuthError(errDetail);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedDomain(true);
+    setTimeout(() => setCopiedDomain(false), 2000);
+  };
+
   const tabs = [
     { id: "dashboard", label: "DASHBOARD", icon: LayoutDashboard },
     { id: "subjects", label: "SUBJECTS & WEIGHTS", icon: BookOpen },
@@ -155,11 +190,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             ) : (
               <button
-                onClick={() => loginWithGoogle()}
-                className="inline-flex items-center space-x-2 bg-[#00FF66] hover:bg-[#00DD55] text-black px-4 py-2 rounded-md text-xs font-['Geist_Mono'] font-extrabold transition-all shadow-[0_0_15px_rgba(0,255,102,0.2)]"
+                onClick={handleLogin}
+                disabled={isLoggingIn}
+                className="inline-flex items-center space-x-2 bg-[#00FF66] hover:bg-[#00DD55] text-black px-4 py-2 rounded-md text-xs font-['Geist_Mono'] font-extrabold transition-all shadow-[0_0_15px_rgba(0,255,102,0.2)] disabled:opacity-50"
               >
                 <LogIn className="w-4 h-4" />
-                <span>LOGIN_WITH_GOOGLE</span>
+                <span>{isLoggingIn ? "CONNECTING..." : "LOGIN_WITH_GOOGLE"}</span>
               </button>
             )}
           </div>
@@ -187,7 +223,85 @@ export const Navbar: React.FC<NavbarProps> = ({
           })}
         </nav>
       </div>
+
+      {/* Auth Error Diagnostic Modal */}
+      {authError && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#18181B] border border-rose-500/50 rounded-xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setAuthError(null)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white p-1"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-3 text-rose-400">
+              <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-white">{authError.title}</h3>
+                <p className="text-xs text-rose-300 font-['Geist_Mono']">
+                  ERROR_CODE: {authError.code}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[#111113] p-4 border border-white/10 rounded-lg space-y-3 text-xs">
+              <div className="flex items-center justify-between text-white/70">
+                <span className="font-['Geist_Mono'] flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-[#00FF66]" /> โดเมนปัจจุบันที่คุณกำลังใช้งาน:
+                </span>
+              </div>
+              <div className="flex items-center justify-between bg-black/60 p-2.5 rounded border border-white/10 font-['Geist_Mono'] text-[#00FF66] font-bold">
+                <span className="truncate mr-2">{authError.domain}</span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(authError.domain)}
+                  className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[10px] flex items-center space-x-1 flex-shrink-0"
+                >
+                  {copiedDomain ? (
+                    <>
+                      <Check className="w-3 h-3 text-[#00FF66]" />
+                      <span>คัดลอกแล้ว</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>คัดลอกชื่อโดเมน</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="text-white/80 whitespace-pre-line leading-relaxed pt-2 border-t border-white/10">
+                {authError.message}
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 justify-end font-['Geist_Mono'] text-xs">
+              <a
+                href="https://console.firebase.google.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 bg-[#00FF66] hover:bg-[#00DD55] text-black font-extrabold rounded flex items-center justify-center space-x-1.5"
+              >
+                <span>เปิด Firebase Console</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+              <button
+                type="button"
+                onClick={() => setAuthError(null)}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded font-bold"
+              >
+                ปิดหน้าต่างนี้
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
+
 
