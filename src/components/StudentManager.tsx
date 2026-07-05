@@ -18,7 +18,7 @@ import {
   UserX,
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { Student } from "../types";
+import { Student, cleanYear, cleanTerm } from "../types";
 import { StudentQRModal } from "./StudentQRModal";
 
 interface StudentManagerProps {

@@ -9,7 +9,7 @@ import {
   Award,
   AlertCircle,
 } from "lucide-react";
-import { Assignment, Subject } from "../types";
+import { Assignment, Subject, cleanYear, cleanTerm } from "../types";
 
 interface AssignmentManagerProps {
   subjects: Subject[];
@@ -86,8 +86,8 @@ export const AssignmentManager: React.FC<AssignmentManagerProps> = ({
     setCategory("preMidterm");
     setAssignedClasses(currentSubject?.classes || []);
     setDueDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
-    setTerm(selectedTerm === "ALL" ? "1" : selectedTerm);
-    setAcademicYear(selectedAcademicYear === "ALL" ? "2568" : selectedAcademicYear);
+    setTerm(selectedTerm === "ALL" ? "1" : cleanTerm(selectedTerm));
+    setAcademicYear(selectedAcademicYear === "ALL" ? (academicYears[0] || "2568") : cleanYear(selectedAcademicYear));
     setError("");
     setIsModalOpen(true);
   };
@@ -100,8 +100,8 @@ export const AssignmentManager: React.FC<AssignmentManagerProps> = ({
     setCategory(a.category);
     setAssignedClasses(a.assignedClasses || []);
     setDueDate(a.dueDate || "");
-    setTerm(a.term || "1");
-    setAcademicYear(a.academicYear || "2568");
+    setTerm(cleanTerm(a.term) || "1");
+    setAcademicYear(cleanYear(a.academicYear) || "2568");
     setError("");
     setIsModalOpen(true);
   };
@@ -128,8 +128,8 @@ export const AssignmentManager: React.FC<AssignmentManagerProps> = ({
           category,
           assignedClasses,
           dueDate,
-          term: term.trim() || "1",
-          academicYear: academicYear.trim() || "2568",
+          term: cleanTerm(term) || "1",
+          academicYear: cleanYear(academicYear) || "2568",
         });
       } else {
         await onAddAssignment({
@@ -141,8 +141,8 @@ export const AssignmentManager: React.FC<AssignmentManagerProps> = ({
           category,
           assignedClasses,
           dueDate,
-          term: term.trim() || "1",
-          academicYear: academicYear.trim() || "2568",
+          term: cleanTerm(term) || "1",
+          academicYear: cleanYear(academicYear) || "2568",
         });
       }
       setIsModalOpen(false);

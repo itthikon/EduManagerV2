@@ -47,6 +47,23 @@ export interface AcademicYearInfo {
   createdAt: string;
 }
 
+export const cleanYear = (y?: any): string => {
+  if (y === undefined || y === null) return "";
+  const str = String(y).replace(/['"]/g, "").trim();
+  const match = str.match(/\d{4}/);
+  return match ? match[0] : str;
+};
+
+export const cleanTerm = (t?: any): string => {
+  if (t === undefined || t === null) return "";
+  const str = String(t).replace(/['"]/g, "").trim();
+  if (str === "ALL" || str === "all") return "ALL";
+  if (str.includes("1")) return "1";
+  if (str.includes("2")) return "2";
+  if (str.includes("3")) return "3";
+  return str;
+};
+
 export interface Subject {
   id: string;
   teacherId: string;

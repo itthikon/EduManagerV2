@@ -26,6 +26,8 @@ import {
   Submission,
   UserProfile,
   SystemAccessControl,
+  cleanYear,
+  cleanTerm,
 } from "./types";
 import { buildNotificationMessage } from "./lib/notificationBuilder";
 import { Navbar } from "./components/Navbar";
@@ -520,69 +522,102 @@ export default function App() {
     setSubmissions((prev) => prev.filter((item) => !matchesTarget(item)));
   };
 
+  // Combined Academic Years list extracted from Firestore collection + subjects/students/assignments
+  const combinedAcademicYears = Array.from(
+    new Set([
+      ...academicYears.map(cleanYear),
+      ...subjects.map((s) => cleanYear(s.academicYear)),
+      ...students.map((s) => cleanYear(s.academicYear)),
+      ...assignments.map((a) => cleanYear(a.academicYear)),
+      "2569",
+      "2568",
+      "2567",
+    ])
+  )
+    .filter(Boolean)
+    .sort()
+    .reverse();
+
   // Filtered lists according to selectedAcademicYear and selectedTerm (plus teacherId check)
   const filterByTermAndYear = <T extends { academicYear?: string; term?: string; teacherId?: string }>(items: T[]) => {
+    const selYr = cleanYear(selectedAcademicYear);
+    const selTerm = cleanTerm(selectedTerm);
+
     return items.filter((item) => {
       if (user?.uid && item.teacherId && item.teacherId !== user.uid && item.teacherId !== "demo" && item.teacherId !== "") {
         return false;
       }
-      const itemYr = item.academicYear || "2568";
-      const itemTerm = item.term || "1";
-      const matchYear = selectedAcademicYear === "ALL" || !item.academicYear || itemYr === selectedAcademicYear;
-      const matchTerm = selectedTerm === "ALL" || !item.term || itemTerm === selectedTerm;
-      return matchYear && matchTerm;
+      const itemYr = cleanYear(item.academicYear);
+      const itemTerm = cleanTerm(item.term);
+
+      const matchTerm = selTerm === "ALL" || !itemTerm || itemTerm === selTerm;
+      if (!matchTerm) return false;
+
+      if (selYr === "ALL") return true;
+      if (!itemYr) return true;
+      if (itemYr === selYr) return true;
+
+      const hasYearSpecificItems = items.some(
+        (s) => cleanYear(s.academicYear) === selYr
+      );
+      return !hasYearSpecificItems;
     });
   };
 
-  const filteredSubjects = subjects.filter((item) => {
-    if (user?.uid && item.teacherId && item.teacherId !== user.uid && item.teacherId !== "demo" && item.teacherId !== "") {
-      return false;
-    }
+  const filteredSubjects = filterByTermAndYear(subjects);
 
-    const matchTerm = selectedTerm === "ALL" || !item.term || item.term === selectedTerm;
-    if (!matchTerm) return false;
-
-    if (selectedAcademicYear === "ALL") return true;
-    if (!item.academicYear) return true;
-    if (item.academicYear === selectedAcademicYear) return true;
-
-    const hasYearSpecificSubjects = subjects.some(
-      (s) => s.academicYear === selectedAcademicYear
-    );
-    return !hasYearSpecificSubjects;
-  });
-  // Filter students by teacher and academic year (Students remain valid across terms 1 and 2 in a school year)
   const filteredStudents = students.filter((item) => {
-    // 1. Teacher isolation check
     if (user?.uid && item.teacherId && item.teacherId !== user.uid && item.teacherId !== "demo" && item.teacherId !== "") {
       return false;
     }
+    const selYr = cleanYear(selectedAcademicYear);
+    const itemYr = cleanYear(item.academicYear);
 
-    // 2. Academic Year check
-    if (selectedAcademicYear === "ALL") return true;
-    if (!item.academicYear) return true;
-    if (item.academicYear === selectedAcademicYear) return true;
+    if (selYr === "ALL") return true;
+    if (!itemYr) return true;
+    if (itemYr === selYr) return true;
 
-    // Fallback: If no student in the database matches this specific selectedAcademicYear for item's classroom,
-    // show existing students for that classroom so the teacher doesn't lose sight of imported roster!
     const hasYearSpecificStudentsInRoom = students.some(
-      (s) => s.classRoom === item.classRoom && s.academicYear === selectedAcademicYear
+      (s) => s.classRoom === item.classRoom && cleanYear(s.academicYear) === selYr
     );
     return !hasYearSpecificStudentsInRoom;
   });
+
   const filteredAssignments = filterByTermAndYear(assignments);
   const filteredSubmissions = filterByTermAndYear(submissions);
+
+  // Helper to sync Academic Year doc to Firestore
+  const ensureAcademicYearDoc = async (year: string) => {
+    const cYear = cleanYear(year);
+    if (!cYear) return;
+    try {
+      await setDoc(
+        doc(db, "academicYears", `yr_${cYear}`),
+        {
+          id: `yr_${cYear}`,
+          year: cYear,
+          createdAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("Error ensuring academic year doc:", e);
+    }
+  };
 
   // CRUD Handler - Subjects
   const handleAddSubject = async (data: Omit<Subject, "id" | "createdAt">) => {
     const currentTeacher = user?.uid || "demo";
-    const activeYear = selectedAcademicYear !== "ALL" ? selectedAcademicYear : (academicYears[0] || "2568");
+    const activeYear = selectedAcademicYear !== "ALL" ? selectedAcademicYear : (combinedAcademicYears[0] || "2568");
     const activeTerm = selectedTerm !== "ALL" ? selectedTerm : "1";
     const newId = `sub_${Date.now()}`;
+    const cleanY = cleanYear(data.academicYear || activeYear);
+    const cleanT = cleanTerm(data.term || activeTerm);
+
     const newDoc: Subject = {
       ...data,
-      academicYear: data.academicYear || activeYear,
-      term: data.term || activeTerm,
+      academicYear: cleanY,
+      term: cleanT,
       id: newId,
       teacherId: data.teacherId || currentTeacher,
       createdAt: new Date().toISOString(),
@@ -591,15 +626,21 @@ export default function App() {
     setSubjects((prev) => [...prev, newDoc]);
     try {
       await setDoc(doc(db, "subjects", newId), newDoc);
+      await ensureAcademicYearDoc(cleanY);
     } catch (e) {
       console.error("Firestore save error:", e);
     }
   };
 
   const handleUpdateSubject = async (id: string, data: Partial<Subject>) => {
-    setSubjects((prev) => prev.map((s) => (s.id === id ? { ...s, ...data } : s)));
+    const cleanData = { ...data };
+    if (cleanData.academicYear !== undefined) cleanData.academicYear = cleanYear(cleanData.academicYear);
+    if (cleanData.term !== undefined) cleanData.term = cleanTerm(cleanData.term);
+
+    setSubjects((prev) => prev.map((s) => (s.id === id ? { ...s, ...cleanData } : s)));
     try {
-      await updateDoc(doc(db, "subjects", id), data);
+      await updateDoc(doc(db, "subjects", id), cleanData);
+      if (cleanData.academicYear) await ensureAcademicYearDoc(cleanData.academicYear);
     } catch (e) {
       console.error("Firestore update error:", e);
     }
@@ -1000,7 +1041,7 @@ export default function App() {
         setSelectedTerm={setSelectedTerm}
         selectedAcademicYear={selectedAcademicYear}
         setSelectedAcademicYear={setSelectedAcademicYear}
-        academicYears={academicYears}
+        academicYears={combinedAcademicYears}
         onOpenYearManager={() => setIsYearManagerOpen(true)}
       />
 
@@ -1023,7 +1064,7 @@ export default function App() {
             onDeleteSubject={handleDeleteSubject}
             selectedTerm={selectedTerm}
             selectedAcademicYear={selectedAcademicYear}
-            academicYears={academicYears}
+            academicYears={combinedAcademicYears}
           />
         )}
 
@@ -1039,7 +1080,7 @@ export default function App() {
             onDeleteClassroom={handleDeleteClassroom}
             selectedTerm={selectedTerm}
             selectedAcademicYear={selectedAcademicYear}
-            academicYears={academicYears}
+            academicYears={combinedAcademicYears}
           />
         )}
 
@@ -1052,7 +1093,7 @@ export default function App() {
             onDeleteAssignment={handleDeleteAssignment}
             selectedTerm={selectedTerm}
             selectedAcademicYear={selectedAcademicYear}
-            academicYears={academicYears}
+            academicYears={combinedAcademicYears}
           />
         )}
 
@@ -1090,7 +1131,7 @@ export default function App() {
       <AcademicYearManagerModal
         isOpen={isYearManagerOpen}
         onClose={() => setIsYearManagerOpen(false)}
-        academicYears={academicYears}
+        academicYears={combinedAcademicYears}
         selectedTerm={selectedTerm}
         setSelectedTerm={setSelectedTerm}
         selectedAcademicYear={selectedAcademicYear}

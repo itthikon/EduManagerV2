@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { BookOpen, Plus, Edit2, Trash2, AlertCircle, Layers, Calendar } from "lucide-react";
-import { Subject, ScoreWeights } from "../types";
+import { Subject, ScoreWeights, cleanYear, cleanTerm } from "../types";
 
 interface SubjectManagerProps {
   subjects: Subject[];
@@ -43,8 +43,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     setCode("");
     setName("");
     setClassesInput("ม.1/1, ม.1/2");
-    setTerm(selectedTerm === "ALL" ? "1" : selectedTerm);
-    setAcademicYear(selectedAcademicYear === "ALL" ? "2568" : selectedAcademicYear);
+    setTerm(selectedTerm === "ALL" ? "1" : cleanTerm(selectedTerm));
+    setAcademicYear(selectedAcademicYear === "ALL" ? (academicYears[0] || "2568") : cleanYear(selectedAcademicYear));
     setScoreWeights({ preMidterm: 30, midterm: 20, postMidterm: 30, final: 20 });
     setError("");
     setIsModalOpen(true);
@@ -55,8 +55,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     setCode(subject.code);
     setName(subject.name);
     setClassesInput(subject.classes.join(", "));
-    setTerm(subject.term || "1");
-    setAcademicYear(subject.academicYear || "2568");
+    setTerm(cleanTerm(subject.term) || "1");
+    setAcademicYear(cleanYear(subject.academicYear) || "2568");
     const w: ScoreWeights = subject.scoreWeights || { preMidterm: 30, midterm: 20, postMidterm: 30, final: 20 };
     setScoreWeights({
       preMidterm: w.preMidterm ?? (w.formative ? Math.round(w.formative / 2) : 30),
@@ -105,8 +105,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
           code: code.trim(),
           name: name.trim(),
           classes: classesArray,
-          term: term.trim() || "1",
-          academicYear: academicYear.trim() || "2568",
+          term: cleanTerm(term) || "1",
+          academicYear: cleanYear(academicYear) || "2568",
           scoreWeights: {
             preMidterm: Number(scoreWeights.preMidterm),
             midterm: Number(scoreWeights.midterm),
@@ -120,8 +120,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
           code: code.trim(),
           name: name.trim(),
           classes: classesArray,
-          term: term.trim() || "1",
-          academicYear: academicYear.trim() || "2568",
+          term: cleanTerm(term) || "1",
+          academicYear: cleanYear(academicYear) || "2568",
           scoreWeights: {
             preMidterm: Number(scoreWeights.preMidterm),
             midterm: Number(scoreWeights.midterm),

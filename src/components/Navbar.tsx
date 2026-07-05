@@ -20,7 +20,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { loginWithGoogle, logoutUser, getAuthErrorMessage, SUPER_ADMIN_UID } from "../lib/firebase";
-import { UserProfile } from "../types";
+import { UserProfile, cleanYear } from "../types";
 
 interface NavbarProps {
   activeTab: string;
@@ -141,16 +141,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Year Selector */}
               <select
-                value={selectedAcademicYear}
+                value={cleanYear(selectedAcademicYear)}
                 onChange={(e) => setSelectedAcademicYear(e.target.value)}
                 className="bg-[#111113] text-white text-xs font-bold border border-white/20 rounded px-2 py-1 focus:border-[#00FF66] focus:outline-none"
                 title="เลือกปีการศึกษา"
               >
-                {academicYears.map((yr) => (
-                  <option key={yr} value={yr}>
-                    ปี {yr}
-                  </option>
-                ))}
+                {academicYears.map((yr) => {
+                  const cYr = cleanYear(yr);
+                  return (
+                    <option key={yr} value={cYr}>
+                      ปี {cYr}
+                    </option>
+                  );
+                })}
                 <option value="ALL">-- ทุกปี (ALL) --</option>
               </select>
 

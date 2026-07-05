@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   HelpCircle,
 } from "lucide-react";
-import { Subject, Student, Assignment, Submission } from "../types";
+import { Subject, Student, Assignment, Submission, cleanYear } from "../types";
 
 interface AcademicYearManagerModalProps {
   isOpen: boolean;
@@ -61,21 +61,21 @@ export const AcademicYearManagerModal: React.FC<AcademicYearManagerModalProps> =
   const handleAddYear = async (e: React.FormEvent) => {
     e.preventDefault();
     setAddError("");
-    const trimmed = newYearInput.trim();
-    if (!trimmed) {
+    const cYear = cleanYear(newYearInput);
+    if (!cYear) {
       setAddError("กรุณากรอกปีการศึกษา เช่น 2568, 2569");
       return;
     }
 
-    if (academicYears.includes(trimmed)) {
-      setAddError(`ปีการศึกษา ${trimmed} มีอยู่ในระบบแล้ว`);
+    if (academicYears.map(cleanYear).includes(cYear)) {
+      setAddError(`ปีการศึกษา ${cYear} มีอยู่ในระบบแล้ว`);
       return;
     }
 
     setAdding(true);
     try {
-      await onAddAcademicYear(trimmed);
-      setSelectedAcademicYear(trimmed);
+      await onAddAcademicYear(cYear);
+      setSelectedAcademicYear(cYear);
       setNewYearInput("");
     } catch (err: any) {
       setAddError(err.message || "เกิดข้อผิดพลาดในการเพิ่มปีการศึกษา");
