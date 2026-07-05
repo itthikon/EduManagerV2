@@ -15,6 +15,7 @@ import {
   Check,
   AlertCircle,
   FileText,
+  UserX,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Student } from "../types";
@@ -27,6 +28,8 @@ interface StudentManagerProps {
   onBatchAddStudents: (students: Omit<Student, "id" | "createdAt">[]) => Promise<void>;
   onUpdateStudent: (id: string, student: Partial<Student>) => Promise<void>;
   onDeleteStudent: (id: string) => Promise<void>;
+  onBatchDeleteStudents?: (ids: string[]) => Promise<void>;
+  onDeleteClassroom?: (classRoomName: string) => Promise<void>;
   selectedTerm?: string;
   selectedAcademicYear?: string;
   academicYears?: string[];
@@ -39,6 +42,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   onBatchAddStudents,
   onUpdateStudent,
   onDeleteStudent,
+  onBatchDeleteStudents,
+  onDeleteClassroom,
   selectedTerm = "1",
   selectedAcademicYear = "2568",
   academicYears = ["2568", "2567"],
@@ -49,6 +54,12 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [previewQrClass, setPreviewQrClass] = useState<string | null>(null);
+
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    isOpen: boolean;
+    type: "clear_roster" | "delete_classroom";
+    classRoom: string;
+  } | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -588,6 +599,48 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
     }
   };
 
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmModal) return;
+    const { type, classRoom } = deleteConfirmModal;
+    setLoading(true);
+    try {
+      if (type === "clear_roster") {
+        const classStudents = students.filter((s) => s.classRoom === classRoom);
+        const ids = classStudents.map((s) => s.id);
+        if (onBatchDeleteStudents) {
+          await onBatchDeleteStudents(ids);
+        } else {
+          for (const id of ids) {
+            await onDeleteStudent(id);
+          }
+        }
+      } else if (type === "delete_classroom") {
+        if (onDeleteClassroom) {
+          await onDeleteClassroom(classRoom);
+        } else {
+          const classStudents = students.filter((s) => s.classRoom === classRoom);
+          const ids = classStudents.map((s) => s.id);
+          if (onBatchDeleteStudents) {
+            await onBatchDeleteStudents(ids);
+          } else {
+            for (const id of ids) {
+              await onDeleteStudent(id);
+            }
+          }
+        }
+        if (selectedClass === classRoom) {
+          setSelectedClass("ALL");
+        }
+      }
+      setDeleteConfirmModal(null);
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert("เกิดข้อผิดพลาดในการลบข้อมูล");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGenerateSampleData = async () => {
     const sampleClass = "ม.1/1";
     const sampleList: Omit<Student, "id" | "createdAt">[] = [
@@ -673,18 +726,34 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
 
             {allClasses.map((cls) => {
               const count = students.filter((s) => s.classRoom === cls).length;
+              const isSelected = selectedClass === cls;
               return (
-                <button
-                  key={cls}
-                  onClick={() => setSelectedClass(cls)}
-                  className={`px-3 py-1.5 text-xs font-bold whitespace-nowrap uppercase transition-all border ${
-                    selectedClass === cls
-                      ? "bg-[#00FF66] text-black border-[#00FF66]"
-                      : "bg-[#111113] text-white/70 border-white/10 hover:border-white/30"
-                  }`}
-                >
-                  {cls} ({count})
-                </button>
+                <div key={cls} className="relative inline-flex items-center group">
+                  <button
+                    onClick={() => setSelectedClass(cls)}
+                    className={`px-3 py-1.5 text-xs font-bold whitespace-nowrap uppercase transition-all border ${
+                      isSelected
+                        ? "bg-[#00FF66] text-black border-[#00FF66]"
+                        : "bg-[#111113] text-white/70 border-white/10 hover:border-white/30"
+                    }`}
+                  >
+                    {cls} ({count})
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteConfirmModal({
+                        isOpen: true,
+                        type: "delete_classroom",
+                        classRoom: cls,
+                      });
+                    }}
+                    title={`ลบห้องเรียน ${cls}`}
+                    className="p-1.5 bg-[#111113] border border-l-0 border-white/10 hover:border-red-500/50 text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -702,6 +771,56 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
           </div>
         </div>
       </div>
+
+      {/* Selected Classroom Action Banner */}
+      {selectedClass !== "ALL" && (
+        <div className="bg-[#18181B] border border-[#00FF66]/30 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 font-['Geist_Mono'] shadow-lg">
+          <div className="flex items-center space-x-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#00FF66] animate-pulse" />
+            <span className="text-xs text-white/60">กำลังเลือกห้องเรียน:</span>
+            <span className="text-sm font-extrabold text-[#00FF66] bg-[#00FF66]/10 px-2.5 py-0.5 border border-[#00FF66]/30 font-mono">
+              {selectedClass}
+            </span>
+            <span className="text-xs text-white/40">
+              ({students.filter((s) => s.classRoom === selectedClass).length} คน)
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2 flex-wrap gap-2">
+            {/* 1. ปุ่มลบรายชื่อทั้งห้องเรียน */}
+            <button
+              onClick={() =>
+                setDeleteConfirmModal({
+                  isOpen: true,
+                  type: "clear_roster",
+                  classRoom: selectedClass,
+                })
+              }
+              className="inline-flex items-center space-x-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 px-3.5 py-2 rounded text-xs font-bold uppercase transition-all"
+              title={`ลบรายชื่อนักเรียนทั้งหมดในห้อง ${selectedClass}`}
+            >
+              <UserX className="w-4 h-4 text-amber-400" />
+              <span>ลบรายชื่อทั้งห้องเรียน</span>
+            </button>
+
+            {/* 2. ปุ่มลบห้องเรียน */}
+            <button
+              onClick={() =>
+                setDeleteConfirmModal({
+                  isOpen: true,
+                  type: "delete_classroom",
+                  classRoom: selectedClass,
+                })
+              }
+              className="inline-flex items-center space-x-1.5 bg-red-600/20 hover:bg-red-600/35 text-red-300 border border-red-500/50 px-3.5 py-2 rounded text-xs font-bold uppercase transition-all shadow-[0_0_10px_rgba(239,68,68,0.15)]"
+              title={`ลบห้องเรียน ${selectedClass} ออกจากระบบ`}
+            >
+              <Trash2 className="w-4 h-4 text-red-400" />
+              <span>ลบห้องเรียน</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Roster Table */}
       {filteredStudents.length === 0 ? (
@@ -1180,6 +1299,93 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmModal?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#18181B] border border-red-500/40 rounded-xl p-6 max-w-md w-full shadow-2xl space-y-5 font-['Geist'] text-white">
+            <div className="flex items-start space-x-3">
+              <div className="p-2.5 bg-red-500/20 text-red-400 rounded-lg border border-red-500/30">
+                <AlertCircle className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold font-['Geist_Mono'] text-white">
+                  {deleteConfirmModal.type === "clear_roster"
+                    ? "ยืนยันลบรายชื่อทั้งห้องเรียน"
+                    : "ยืนยันลบห้องเรียน"}
+                </h3>
+                <p className="text-xs text-white/50 mt-1 font-['Geist_Mono']">
+                  ห้องเรียน: <span className="text-[#00FF66] font-bold">{deleteConfirmModal.classRoom}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-red-950/30 border border-red-500/20 p-3.5 rounded-lg text-xs space-y-2 text-red-200/90 leading-relaxed font-['Geist']">
+              {deleteConfirmModal.type === "clear_roster" ? (
+                <>
+                  <p>
+                    ⚠️ คุณกำลังจะลบรายชื่อนักเรียนทั้งหมดในห้อง{" "}
+                    <strong className="text-white">{deleteConfirmModal.classRoom}</strong> จำนวน{" "}
+                    <strong className="text-amber-400">
+                      {students.filter((s) => s.classRoom === deleteConfirmModal.classRoom).length} คน
+                    </strong>
+                  </p>
+                  <p className="text-white/60 text-[11px] font-['Geist_Mono']">
+                    • รายชื่อนักเรียนในห้องนี้จะถูกลบออกจากระบบอย่างถาวร
+                    <br />
+                    • ชื่อห้องเรียนจะยังคงอยู่สำหรับนำเข้าข้อมูลใหม่
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    🚨 คุณกำลังจะลบห้องเรียน <strong className="text-white">{deleteConfirmModal.classRoom}</strong> ออกจากระบบ
+                  </p>
+                  <p className="text-white/60 text-[11px] font-['Geist_Mono']">
+                    • รายชื่อนักเรียนทั้งหมด{" "}
+                    <strong className="text-red-300 font-bold">
+                      ({students.filter((s) => s.classRoom === deleteConfirmModal.classRoom).length} คน)
+                    </strong>{" "}
+                    ในห้องนี้จะถูกลบถาวร
+                    <br />
+                    • ชื่อห้องเรียนจะถูกถอนออกจากระบบรายวิชาที่เกี่ยวข้อง
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-2 font-['Geist_Mono'] text-xs">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmModal(null)}
+                disabled={loading}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-md transition-colors font-bold uppercase"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={loading}
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-md font-extrabold uppercase transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] flex items-center space-x-1.5"
+              >
+                {loading ? (
+                  <span>กำลังดำเนินการ...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>
+                      {deleteConfirmModal.type === "clear_roster"
+                        ? "ยืนยันลบรายชื่อทั้งห้อง"
+                        : "ยืนยันลบห้องเรียน"}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

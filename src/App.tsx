@@ -471,6 +471,38 @@ export default function App() {
     }
   };
 
+  const handleBatchDeleteStudents = async (studentIds: string[]) => {
+    setStudents((prev) => prev.filter((s) => !studentIds.includes(s.id)));
+    for (const id of studentIds) {
+      try {
+        await deleteDoc(doc(db, "students", id));
+      } catch (e) {
+        console.error("Firestore batch delete student error:", e);
+      }
+    }
+  };
+
+  const handleDeleteClassroom = async (classRoomName: string) => {
+    const studentIdsToDelete = students.filter((s) => s.classRoom === classRoomName).map((s) => s.id);
+    if (studentIdsToDelete.length > 0) {
+      await handleBatchDeleteStudents(studentIdsToDelete);
+    }
+
+    for (const sub of subjects) {
+      if (sub.classes && sub.classes.includes(classRoomName)) {
+        const updatedClasses = sub.classes.filter((c) => c !== classRoomName);
+        await handleUpdateSubject(sub.id, { classes: updatedClasses });
+      }
+    }
+
+    const lineCfgId = `line_${classRoomName.replace(/\//g, "-")}`;
+    try {
+      await deleteDoc(doc(db, "lineConfigs", lineCfgId));
+    } catch (e) {
+      // lineConfig might not exist
+    }
+  };
+
   // CRUD Handler - Assignments
   const handleAddAssignment = async (data: Omit<Assignment, "id" | "createdAt">) => {
     const newId = `as_${Date.now()}`;
@@ -621,6 +653,8 @@ export default function App() {
             onBatchAddStudents={handleBatchAddStudents}
             onUpdateStudent={handleUpdateStudent}
             onDeleteStudent={handleDeleteStudent}
+            onBatchDeleteStudents={handleBatchDeleteStudents}
+            onDeleteClassroom={handleDeleteClassroom}
             selectedTerm={selectedTerm}
             selectedAcademicYear={selectedAcademicYear}
             academicYears={academicYears}
