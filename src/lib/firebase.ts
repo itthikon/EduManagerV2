@@ -95,6 +95,8 @@ export const getAuthErrorMessage = (error: any): { title: string; message: strin
   };
 };
 
+export const SUPER_ADMIN_UID = "hHUsAQdGi6MN2WQFwyS5VLPXPei1";
+
 export const loginWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
@@ -102,18 +104,34 @@ export const loginWithGoogle = async () => {
 
     // Save user profile to Firestore
     if (user) {
+      const isSuperAdmin = user.uid === SUPER_ADMIN_UID;
       const userRef = doc(db, "users", user.uid);
-      await setDoc(
-        userRef,
-        {
+      const existingSnap = await getDoc(userRef);
+
+      if (!existingSnap.exists()) {
+        await setDoc(userRef, {
           uid: user.uid,
           email: user.email || "",
           displayName: user.displayName || "ครูผู้สอน",
           photoURL: user.photoURL || "",
+          role: isSuperAdmin ? "admin" : "teacher",
+          status: isSuperAdmin ? "allowed" : "pending",
           createdAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+          lastLoginAt: new Date().toISOString(),
+        });
+      } else {
+        const existingData = existingSnap.data();
+        await setDoc(
+          userRef,
+          {
+            displayName: user.displayName || existingData?.displayName || "ครูผู้สอน",
+            photoURL: user.photoURL || existingData?.photoURL || "",
+            lastLoginAt: new Date().toISOString(),
+            ...(isSuperAdmin ? { role: "admin", status: "allowed" } : {}),
+          },
+          { merge: true }
+        );
+      }
     }
     return user;
   } catch (error: any) {

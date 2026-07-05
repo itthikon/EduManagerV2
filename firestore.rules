@@ -6,6 +6,16 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if true;
     }
+
+    // System Settings rule
+    match /systemSettings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Access Requests rule
+    match /accessRequests/{requestId} {
+      allow read, write: if true;
+    }
     
     // Subjects rule
     match /subjects/{subjectId} {

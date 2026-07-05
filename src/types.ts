@@ -3,6 +3,32 @@ export interface UserProfile {
   email: string;
   displayName: string;
   photoURL: string;
+  role?: "admin" | "teacher" | "user";
+  status?: "allowed" | "pending" | "blocked";
+  createdAt?: string;
+  lastLoginAt?: string;
+}
+
+export interface SystemAccessControl {
+  id?: string;
+  restrictedMode: boolean; // true = เฉพาะผู้ได้รับอนุมัติ, false = สาธารณะ
+  admins: string[];        // list of admin UIDs
+  allowedUids: string[];   // list of allowed user UIDs
+  allowedEmails: string[]; // list of allowed email addresses
+  allowedDomains: string[]; // e.g. ["school.ac.th"]
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface AccessRequest {
+  id: string; // uid
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  status: "pending" | "approved" | "rejected";
+  requestedAt: string;
+  note?: string;
 }
 
 export interface ScoreWeights {

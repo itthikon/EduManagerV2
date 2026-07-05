@@ -16,8 +16,10 @@ import {
   Check,
   ExternalLink,
   Globe,
+  Crown,
+  ShieldCheck,
 } from "lucide-react";
-import { loginWithGoogle, logoutUser, getAuthErrorMessage } from "../lib/firebase";
+import { loginWithGoogle, logoutUser, getAuthErrorMessage, SUPER_ADMIN_UID } from "../lib/firebase";
 import { UserProfile } from "../types";
 
 interface NavbarProps {
@@ -54,6 +56,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   } | null>(null);
   const [copiedDomain, setCopiedDomain] = useState(false);
 
+  const isAdmin = user && (user.uid === SUPER_ADMIN_UID || user.role === "admin");
+
   const handleLogin = async () => {
     setIsLoggingIn(true);
     setAuthError(null);
@@ -81,6 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: "assignments", label: "ASSIGNMENTS", icon: GraduationCap },
     { id: "grading", label: "SCANNER & GRADING", icon: QrCode },
     { id: "line-notify", label: "LINE NOTIFY API", icon: Bell },
+    ...(isAdmin ? [{ id: "admin-users", label: "ADMIN (จัดการสิทธิ์)", icon: Crown }] : []),
   ];
 
   return (
@@ -100,6 +105,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="font-['Geist_Mono'] text-[10px] px-2 py-0.5 rounded bg-[#00FF66]/10 text-[#00FF66] border border-[#00FF66]/30 uppercase tracking-wider">
                   [QR_TRACKER_SYS]
                 </span>
+                {isAdmin && (
+                  <span className="font-['Geist_Mono'] text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider flex items-center gap-1 font-bold">
+                    <Crown className="w-3 h-3 text-amber-400" /> ADMIN
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-white/40 font-['Geist_Mono']">
                 QR CODE 40x40MM • LINE MESSAGING API • FIRESTORE DB
@@ -165,16 +175,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <img
                     src={user.photoURL}
                     alt={user.displayName}
-                    className="w-7 h-7 rounded-md border border-[#00FF66]"
+                    className={`w-7 h-7 rounded-md border ${isAdmin ? "border-amber-400" : "border-[#00FF66]"}`}
                   />
                 ) : (
-                  <div className="w-7 h-7 rounded-md bg-[#00FF66] flex items-center justify-center text-xs font-extrabold text-black">
+                  <div className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-extrabold text-black ${isAdmin ? "bg-amber-400" : "bg-[#00FF66]"}`}>
                     {user.displayName.charAt(0)}
                   </div>
                 )}
                 <div className="hidden sm:block text-left">
-                  <div className="text-xs font-semibold text-white truncate max-w-[120px]">
-                    {user.displayName}
+                  <div className="text-xs font-semibold text-white truncate max-w-[120px] flex items-center gap-1">
+                    <span>{user.displayName}</span>
+                    {isAdmin && <Crown className="w-3 h-3 text-amber-400" />}
                   </div>
                   <div className="text-[10px] text-white/40 font-['Geist_Mono'] truncate max-w-[120px]">
                     {user.email}

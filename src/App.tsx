@@ -10,8 +10,11 @@ import {
   setDoc,
   deleteDoc,
   updateDoc,
+  getDoc,
+  query,
+  where,
 } from "firebase/firestore";
-import { auth, db, handleFirestoreError, OperationType } from "./lib/firebase";
+import { auth, db, handleFirestoreError, OperationType, SUPER_ADMIN_UID } from "./lib/firebase";
 import {
   Assignment,
   LineConfig,
@@ -20,6 +23,7 @@ import {
   Subject,
   Submission,
   UserProfile,
+  SystemAccessControl,
 } from "./types";
 import { buildNotificationMessage } from "./lib/notificationBuilder";
 import { Navbar } from "./components/Navbar";
@@ -30,6 +34,9 @@ import { AssignmentManager } from "./components/AssignmentManager";
 import { GradingScanner } from "./components/GradingScanner";
 import { LineNotificationManager } from "./components/LineNotificationManager";
 import { AcademicYearManagerModal } from "./components/AcademicYearManagerModal";
+import { AdminUserManagement } from "./components/AdminUserManagement";
+import { AccessDeniedScreen } from "./components/AccessDeniedScreen";
+import { LoginScreen } from "./components/LoginScreen";
 
 // Initial Demo Seed Data
 const INITIAL_SUBJECTS: Subject[] = [
@@ -146,9 +153,16 @@ export default function App() {
   const [academicYears, setAcademicYears] = useState<string[]>(["2568", "2567"]);
   const [isYearManagerOpen, setIsYearManagerOpen] = useState(false);
 
-  // Auth User state
+  // Auth User & System Security State
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [accessControl, setAccessControl] = useState<SystemAccessControl>({
+    restrictedMode: true,
+    admins: [SUPER_ADMIN_UID],
+    allowedUids: [SUPER_ADMIN_UID],
+    allowedEmails: [],
+    allowedDomains: [],
+  });
 
   // App Data States
   const [subjects, setSubjects] = useState<Subject[]>(INITIAL_SUBJECTS);
@@ -158,26 +172,117 @@ export default function App() {
   const [lineConfigs, setLineConfigs] = useState<LineConfig[]>([]);
   const [scheduledNotifications, setScheduledNotifications] = useState<ScheduledNotification[]>([]);
 
-  // Auth state change listener
+  // System Access Control Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (fbUser: FirebaseUser | null) => {
-      if (fbUser) {
-        setUser({
-          uid: fbUser.uid,
-          email: fbUser.email || "",
-          displayName: fbUser.displayName || "ครูผู้สอน",
-          photoURL: fbUser.photoURL || "",
-        });
-      } else {
-        setUser(null);
+    const unsubAccess = onSnapshot(
+      doc(db, "systemSettings", "accessControl"),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as SystemAccessControl;
+          setAccessControl({
+            restrictedMode: data.restrictedMode ?? true,
+            admins: Array.from(new Set([...(data.admins || []), SUPER_ADMIN_UID])),
+            allowedUids: Array.from(new Set([...(data.allowedUids || []), SUPER_ADMIN_UID])),
+            allowedEmails: data.allowedEmails || [],
+            allowedDomains: data.allowedDomains || [],
+          });
+        }
+      },
+      (error) => {
+        console.warn("System Access Control snapshot error:", error);
       }
-      setLoadingAuth(false);
-    });
-
-    return () => unsubscribe();
+    );
+    return () => unsubAccess();
   }, []);
 
-  // Firestore Realtime Subscriptions
+  // Auth state change & Real-time User Profile Listener
+  useEffect(() => {
+    let unsubUserDoc: (() => void) | null = null;
+
+    const unsubscribe = onAuthStateChanged(auth, (fbUser: FirebaseUser | null) => {
+      if (fbUser) {
+        // Subscribe to real-time changes of the user profile document in Firestore
+        unsubUserDoc = onSnapshot(
+          doc(db, "users", fbUser.uid),
+          (snap) => {
+            const isSuper = fbUser.uid === SUPER_ADMIN_UID;
+            if (snap.exists()) {
+              const uData = snap.data();
+              setUser({
+                uid: fbUser.uid,
+                email: fbUser.email || uData.email || "",
+                displayName: fbUser.displayName || uData.displayName || "ครูผู้สอน",
+                photoURL: fbUser.photoURL || uData.photoURL || "",
+                role: isSuper ? "admin" : (uData.role || "teacher"),
+                status: isSuper ? "allowed" : (uData.status || "pending"),
+              });
+            } else {
+              setUser({
+                uid: fbUser.uid,
+                email: fbUser.email || "",
+                displayName: fbUser.displayName || "ครูผู้สอน",
+                photoURL: fbUser.photoURL || "",
+                role: isSuper ? "admin" : "teacher",
+                status: isSuper ? "allowed" : "pending",
+              });
+            }
+            setLoadingAuth(false);
+          },
+          (err) => {
+            console.warn("User profile snapshot error:", err);
+            setLoadingAuth(false);
+          }
+        );
+      } else {
+        if (unsubUserDoc) unsubUserDoc();
+        setUser(null);
+        setLoadingAuth(false);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (unsubUserDoc) unsubUserDoc();
+    };
+  }, []);
+
+  // Check user privileges and system access
+  const isSuperAdmin = user?.uid === SUPER_ADMIN_UID;
+  const isAdmin = isSuperAdmin || user?.role === "admin" || accessControl.admins.includes(user?.uid || "");
+
+  const isUserAllowed = (() => {
+    if (!user) return true; // Let unauthenticated users see the navbar/login button
+    if (isSuperAdmin || isAdmin) return true;
+    if (!accessControl.restrictedMode) return true; // System is in public mode
+    if (user.status === "allowed") return true;
+    if (accessControl.allowedUids.includes(user.uid)) return true;
+    if (user.email && accessControl.allowedEmails.includes(user.email.toLowerCase())) return true;
+    if (user.email && accessControl.allowedDomains.some((d) => user.email.toLowerCase().endsWith(d))) return true;
+    return false;
+  })();
+
+  const handleRequestAccess = async () => {
+    if (!user) return;
+    try {
+      await setDoc(
+        doc(db, "accessRequests", user.uid),
+        {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL || "",
+          status: "pending",
+          requestedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+      await setDoc(doc(db, "users", user.uid), { status: "pending" }, { merge: true });
+    } catch (e) {
+      console.error("Error sending access request:", e);
+    }
+  };
+
+  // Firestore Realtime Subscriptions (Filtered per User Account)
   useEffect(() => {
     // 0. Academic Years Listener
     const unsubYears = onSnapshot(
@@ -197,9 +302,15 @@ export default function App() {
       }
     );
 
-    // 1. Subjects Listener
-    const unsubSubjects = onSnapshot(
+    const currentTeacherId = user?.uid || "demo";
+
+    // 1. Subjects Listener (User Isolated)
+    const subjectsQuery = query(
       collection(db, "subjects"),
+      where("teacherId", "==", currentTeacherId)
+    );
+    const unsubSubjects = onSnapshot(
+      subjectsQuery,
       (snapshot) => {
         const list: Subject[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -212,9 +323,13 @@ export default function App() {
       }
     );
 
-    // 2. Students Listener
-    const unsubStudents = onSnapshot(
+    // 2. Students Listener (User Isolated)
+    const studentsQuery = query(
       collection(db, "students"),
+      where("teacherId", "==", currentTeacherId)
+    );
+    const unsubStudents = onSnapshot(
+      studentsQuery,
       (snapshot) => {
         const list: Student[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -227,9 +342,13 @@ export default function App() {
       }
     );
 
-    // 3. Assignments Listener
-    const unsubAssignments = onSnapshot(
+    // 3. Assignments Listener (User Isolated)
+    const assignmentsQuery = query(
       collection(db, "assignments"),
+      where("teacherId", "==", currentTeacherId)
+    );
+    const unsubAssignments = onSnapshot(
+      assignmentsQuery,
       (snapshot) => {
         const list: Assignment[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -242,9 +361,13 @@ export default function App() {
       }
     );
 
-    // 4. Submissions Listener
-    const unsubSubmissions = onSnapshot(
+    // 4. Submissions Listener (User Isolated)
+    const submissionsQuery = query(
       collection(db, "submissions"),
+      where("teacherId", "==", currentTeacherId)
+    );
+    const unsubSubmissions = onSnapshot(
+      submissionsQuery,
       (snapshot) => {
         const list: Submission[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -257,9 +380,13 @@ export default function App() {
       }
     );
 
-    // 5. LineConfigs Listener
-    const unsubLine = onSnapshot(
+    // 5. LineConfigs Listener (User Isolated)
+    const lineQuery = query(
       collection(db, "lineConfigs"),
+      where("teacherId", "==", currentTeacherId)
+    );
+    const unsubLine = onSnapshot(
+      lineQuery,
       (snapshot) => {
         const list: LineConfig[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -272,9 +399,13 @@ export default function App() {
       }
     );
 
-    // 6. ScheduledNotifications Listener
-    const unsubSchedules = onSnapshot(
+    // 6. ScheduledNotifications Listener (User Isolated)
+    const schedulesQuery = query(
       collection(db, "scheduledNotifications"),
+      where("teacherId", "==", currentTeacherId)
+    );
+    const unsubSchedules = onSnapshot(
+      schedulesQuery,
       (snapshot) => {
         const list: ScheduledNotification[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -296,7 +427,7 @@ export default function App() {
       unsubLine();
       unsubSchedules();
     };
-  }, []);
+  }, [user?.uid]);
 
   // Academic Year Handlers
   const handleAddAcademicYear = async (year: string) => {
@@ -386,9 +517,12 @@ export default function App() {
     setSubmissions((prev) => prev.filter((item) => !matchesTarget(item)));
   };
 
-  // Filtered lists according to selectedAcademicYear and selectedTerm
-  const filterByTermAndYear = <T extends { academicYear?: string; term?: string }>(items: T[]) => {
+  // Filtered lists according to selectedAcademicYear and selectedTerm (plus teacherId check)
+  const filterByTermAndYear = <T extends { academicYear?: string; term?: string; teacherId?: string }>(items: T[]) => {
     return items.filter((item) => {
+      if (user?.uid && item.teacherId && item.teacherId !== user.uid) {
+        return false;
+      }
       const matchYear = selectedAcademicYear === "ALL" || (item.academicYear || "2568") === selectedAcademicYear;
       const matchTerm = selectedTerm === "ALL" || (item.term || "1") === selectedTerm;
       return matchYear && matchTerm;
@@ -771,6 +905,23 @@ export default function App() {
     ])
   ).filter(Boolean);
 
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen bg-[#111113] text-white flex flex-col items-center justify-center font-['Geist'] space-y-4">
+        <div className="w-12 h-12 border-4 border-[#00FF66] border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs font-mono text-zinc-400 animate-pulse">กำลังตรวจสอบสิทธิ์การเข้าใช้งานระบบ...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  if (!isUserAllowed) {
+    return <AccessDeniedScreen user={user} onRequestAccess={handleRequestAccess} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#111113] text-white flex flex-col font-['Geist']">
       <Navbar
@@ -862,6 +1013,10 @@ export default function App() {
             onToggleScheduledNotification={handleToggleScheduledNotification}
             onExecuteScheduledNotification={handleExecuteScheduledNotification}
           />
+        )}
+
+        {activeTab === "admin-users" && isAdmin && (
+          <AdminUserManagement currentUser={user!} />
         )}
       </main>
 
