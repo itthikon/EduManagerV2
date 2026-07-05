@@ -297,36 +297,75 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
         let lNameColIndex = -1;
         let classColIndex = -1;
 
-        for (let r = 0; r < Math.min(10, rows.length); r++) {
-          const rowStr = (rows[r] || []).map((c: any) => String(c).trim()).join(" ");
+        // Scan top rows for class name & real header row
+        for (let r = 0; r < Math.min(12, rows.length); r++) {
+          const rowCells = (rows[r] || []).map((c: any) => String(c).trim());
+          const rowStr = rowCells.join(" ");
+
           if (!extractedClass) {
             extractedClass = extractClassroomFromTextOrSheet(rowStr, sheetName, "");
           }
 
-          const rowLower = (rows[r] || []).map((c: any) => String(c).trim().toLowerCase());
-          const hasHeaderKeywords = rowLower.some((cell: string) =>
-            ["เลข", "รหัส", "ชื่อ", "id", "name", "คำนำหน้า", "ห้อง"].some((kw) => cell.includes(kw))
-          );
+          const nonCols = rowCells.filter((c) => c.length > 0);
+          if (nonCols.length <= 1) continue; // Skip single-cell title/banner rows
 
-          if (hasHeaderKeywords && headerRowIndex === -1) {
+          // Skip title / metadata rows if they don't contain real column headers
+          if (
+            (rowStr.includes("รายชื่อนักเรียน") || rowStr.includes("ครูที่ปรึกษา") || rowStr.includes("โรงเรียน")) &&
+            !rowCells.some((c) => c === "เลข" || c === "รหัสนักเรียน" || c === "รหัส")
+          ) {
+            continue;
+          }
+
+          // Search for column header matches in this row
+          let foundNum = -1;
+          let foundId = -1;
+          let foundName = -1;
+          let foundFName = -1;
+          let foundLName = -1;
+          let foundPfx = -1;
+          let foundClass = -1;
+
+          rowCells.forEach((cText, cIdx) => {
+            const cLower = cText.toLowerCase();
+            if (cText === "เลข" || cText === "เลขที่" || cText === "ลำดับ" || cText === "ลำดับที่" || cLower === "no" || cLower === "no." || cLower === "number") {
+              foundNum = cIdx;
+            } else if (cText.includes("รหัส") || cLower === "id" || cLower.includes("student_id") || cLower.includes("std_id")) {
+              foundId = cIdx;
+            } else if (cText.includes("คำนำหน้า") || cLower === "prefix" || cLower === "title") {
+              foundPfx = cIdx;
+            } else if ((cText.includes("ชื่อ") && cText.includes("สกุล")) || cText.includes("ชื่อ-นามสกุล") || cText.includes("ชื่อ - นามสกุล")) {
+              foundName = cIdx;
+            } else if (cText.includes("ชื่อ") && !cText.includes("นามสกุล") && !cText.includes("สกุล") && !cText.includes("คำนำหน้า") && !cText.includes("รายชื่อ")) {
+              foundFName = cIdx;
+            } else if (cText.includes("นามสกุล") || (cText.includes("สกุล") && !cText.includes("ชื่อ")) || cLower.includes("lastname") || cLower.includes("surname")) {
+              foundLName = cIdx;
+            } else if ((cText.includes("ห้อง") || cText.includes("ชั้น") || cLower === "class" || cLower === "room") && !cText.includes("รายชื่อ")) {
+              foundClass = cIdx;
+            }
+          });
+
+          // Check if this row is a valid header row
+          if ((foundId !== -1 || foundName !== -1 || foundFName !== -1) && headerRowIndex === -1) {
             headerRowIndex = r;
-            rowLower.forEach((cell: string, cIdx: number) => {
-              if (cell.includes("เลข") || cell === "no" || cell === "number" || cell === "ลำดับ") numColIndex = cIdx;
-              else if (cell.includes("รหัส") || cell === "id" || cell.includes("student_id")) idColIndex = cIdx;
-              else if (cell.includes("คำนำหน้า") || cell === "prefix") pfxColIndex = cIdx;
-              else if (cell.includes("ชื่อ") && cell.includes("สกุล")) nameColIndex = cIdx;
-              else if (cell.includes("ชื่อ") && !cell.includes("นามสกุล") && !cell.includes("คำนำหน้า")) fNameColIndex = cIdx;
-              else if (cell.includes("นามสกุล") || cell.includes("surname") || cell.includes("lastname")) lNameColIndex = cIdx;
-              else if (cell.includes("ห้อง") || cell.includes("ชั้น") || cell === "class") classColIndex = cIdx;
-            });
+            numColIndex = foundNum;
+            idColIndex = foundId;
+            nameColIndex = foundName;
+            pfxColIndex = foundPfx;
+            fNameColIndex = foundFName;
+            lNameColIndex = foundLName;
+            classColIndex = foundClass;
           }
         }
 
         const finalClass = extractedClass || extractClassroomFromTextOrSheet("", sheetName, fallbackClass);
 
-        if (numColIndex === -1) numColIndex = 0;
-        if (idColIndex === -1) idColIndex = 1;
-        if (nameColIndex === -1) nameColIndex = 2;
+        // Fallback column index defaults if header was not found
+        if (idColIndex === -1 && nameColIndex === -1 && fNameColIndex === -1) {
+          numColIndex = 0;
+          idColIndex = 1;
+          nameColIndex = 2;
+        }
 
         const startIdx = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
 
@@ -334,16 +373,20 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
           const row = rows[i];
           if (!row || row.length === 0 || row.every((c: any) => String(c).trim() === "")) continue;
 
-          const valNum = String(row[numColIndex] || "").trim();
-          const valId = String(row[idColIndex] || "").trim();
-          const valName = String(row[nameColIndex] || "").trim();
+          if (i === headerRowIndex) continue;
+
+          const joinedRow = row.map((c: any) => String(c).trim()).join(" ");
+          if (joinedRow.includes("รายชื่อนักเรียน") || joinedRow.includes("ครูที่ปรึกษา") || joinedRow.includes("โรงเรียน")) continue;
+
+          const valNum = numColIndex >= 0 ? String(row[numColIndex] || "").trim() : "";
+          const valId = idColIndex >= 0 ? String(row[idColIndex] || "").trim() : "";
+          const valName = nameColIndex >= 0 ? String(row[nameColIndex] || "").trim() : "";
           const valPfx = pfxColIndex >= 0 ? String(row[pfxColIndex] || "").trim() : "";
           const valFName = fNameColIndex >= 0 ? String(row[fNameColIndex] || "").trim() : "";
           const valLName = lNameColIndex >= 0 ? String(row[lNameColIndex] || "").trim() : "";
           const valCls = classColIndex >= 0 ? String(row[classColIndex] || "").trim() : "";
 
           if (valId.includes("รหัส") || valName.includes("ชื่อ") || valNum.includes("เลข")) continue;
-          if (valId.includes("รายชื่อ") || valName.includes("ครูที่ปรึกษา") || valNum.includes("รายชื่อ")) continue;
 
           let studentId = valId;
           let prefix = "เด็กชาย";
@@ -352,27 +395,40 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
           let classRoom = valCls || finalClass;
           let number = Number(valNum) || parsed.length + 1;
 
-          if (valFName) {
+          if (fNameColIndex >= 0 && lNameColIndex >= 0 && valFName) {
             firstName = valFName;
             lastName = valLName;
-            if (valPfx) prefix = valPfx;
-            else {
-              const parsedPfx = parseThaiName(firstName);
-              prefix = parsedPfx.prefix;
-              firstName = parsedPfx.firstName;
-              if (!lastName) lastName = parsedPfx.lastName;
+            if (valPfx) {
+              prefix = valPfx;
+            } else {
+              const p = parseThaiName(valFName);
+              prefix = p.prefix;
+              firstName = p.firstName;
+              if (!lastName) lastName = p.lastName;
             }
-          } else if (valName) {
-            const parsedName = parseThaiName(valName);
-            prefix = parsedName.prefix;
-            firstName = parsedName.firstName;
-            lastName = parsedName.lastName;
-          } else if (valId && !/^\d+$/.test(valId) && valId.length > 3) {
-            const parsedName = parseThaiName(valId);
-            prefix = parsedName.prefix;
-            firstName = parsedName.firstName;
-            lastName = parsedName.lastName;
-            studentId = `${10001 + parsed.length}`;
+          } else if (nameColIndex >= 0 && valName) {
+            const p = parseThaiName(valName);
+            prefix = valPfx || p.prefix;
+            firstName = p.firstName;
+            lastName = p.lastName;
+          } else if (valFName) {
+            const p = parseThaiName(valFName);
+            prefix = valPfx || p.prefix;
+            firstName = p.firstName;
+            lastName = valLName || p.lastName;
+          } else {
+            // Auto-detect student ID and name from row cells if column indices were missed
+            row.forEach((cell: any, cellIdx: number) => {
+              const str = String(cell || "").trim();
+              if (!studentId && /^\d{3,8}$/.test(str)) {
+                studentId = str;
+              } else if (!firstName && str.length >= 3 && !/^\d+$/.test(str) && cellIdx !== numColIndex) {
+                const p = parseThaiName(str);
+                prefix = p.prefix;
+                firstName = p.firstName;
+                lastName = p.lastName;
+              }
+            });
           }
 
           if (studentId && firstName) {
