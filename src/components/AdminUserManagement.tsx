@@ -33,7 +33,7 @@ import {
   deleteDoc,
   onSnapshot,
 } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { UserProfile, SystemAccessControl, AccessRequest } from "../types";
 
 interface AdminUserManagementProps {
@@ -96,6 +96,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       },
       (error) => {
         console.error("Access Control Snapshot error:", error);
+        handleFirestoreError(error, OperationType.GET, "systemSettings/accessControl");
       }
     );
 
@@ -120,6 +121,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       (error) => {
         console.error("Users Snapshot error:", error);
         setLoading(false);
+        handleFirestoreError(error, OperationType.GET, "users");
       }
     );
 
@@ -135,6 +137,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       },
       (error) => {
         console.error("Access Requests Snapshot error:", error);
+        handleFirestoreError(error, OperationType.GET, "accessRequests");
       }
     );
 

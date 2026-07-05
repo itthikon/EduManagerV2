@@ -51,6 +51,11 @@ service cloud.firestore {
     match /academicYears/{yearId} {
       allow read, write: if true;
     }
+
+    // Test connection rule
+    match /test/{testId} {
+      allow read, write: if true;
+    }
   }
 }
 

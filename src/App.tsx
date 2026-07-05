@@ -190,6 +190,7 @@ export default function App() {
       },
       (error) => {
         console.warn("System Access Control snapshot error:", error);
+        handleFirestoreError(error, OperationType.GET, "systemSettings/accessControl");
       }
     );
     return () => unsubAccess();
@@ -231,6 +232,7 @@ export default function App() {
           (err) => {
             console.warn("User profile snapshot error:", err);
             setLoadingAuth(false);
+            handleFirestoreError(err, OperationType.GET, `users/${fbUser.uid}`);
           }
         );
       } else {
