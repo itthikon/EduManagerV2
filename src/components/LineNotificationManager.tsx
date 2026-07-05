@@ -86,8 +86,18 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
 
   // Available classrooms
   const allClasses = Array.from(
-    new Set([...students.map((s) => s.classRoom), "ม.1/1", "ม.1/2", "ม.1/3"])
+    new Set([
+      ...students.map((s) => s.classRoom),
+      ...subjects.flatMap((s) => s.classes || []),
+    ])
   ).filter(Boolean);
+
+  // Sync selectedClass if current selection is not in allClasses
+  React.useEffect(() => {
+    if (allClasses.length > 0 && (!selectedClass || !allClasses.includes(selectedClass))) {
+      setSelectedClass(allClasses[0]);
+    }
+  }, [allClasses, selectedClass]);
 
   // Sync stored configuration for selected class
   const currentConfig = lineConfigs.find((c) => c.classRoom === selectedClass);

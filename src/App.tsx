@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   onAuthStateChanged,
   User as FirebaseUser,
@@ -11,6 +11,7 @@ import {
   deleteDoc,
   updateDoc,
   getDoc,
+  getDocs,
   query,
   where,
 } from "firebase/firestore";
@@ -152,6 +153,7 @@ export default function App() {
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("2568");
   const [academicYears, setAcademicYears] = useState<string[]>(["2568", "2567"]);
   const [isYearManagerOpen, setIsYearManagerOpen] = useState(false);
+  const hasSeededYearsRef = useRef(false);
 
   // Auth User & System Security State
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -289,14 +291,19 @@ export default function App() {
     // 0. Academic Years Listener
     const unsubYears = onSnapshot(
       collection(db, "academicYears"),
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const yearsList = snapshot.docs.map((docSnap) => docSnap.data().year as string).filter(Boolean);
-          if (yearsList.length > 0) {
-            // Deduplicate and sort descending
-            const uniqueYears = Array.from(new Set([...yearsList, "2568", "2567"])).sort().reverse();
-            setAcademicYears(uniqueYears);
+      async (snapshot) => {
+        if (snapshot.empty && !hasSeededYearsRef.current) {
+          hasSeededYearsRef.current = true;
+          try {
+            await setDoc(doc(db, "academicYears", "yr_2568"), { id: "yr_2568", year: "2568", createdAt: new Date().toISOString() });
+            await setDoc(doc(db, "academicYears", "yr_2567"), { id: "yr_2567", year: "2567", createdAt: new Date().toISOString() });
+          } catch (e) {
+            console.error("Error seeding initial academic years:", e);
           }
+        } else {
+          const yearsList = snapshot.docs.map((docSnap) => docSnap.data().year as string).filter(Boolean);
+          const uniqueYears = Array.from(new Set(yearsList)).sort().reverse();
+          setAcademicYears(uniqueYears);
         }
       },
       (error) => {
@@ -506,10 +513,23 @@ export default function App() {
       try {
         const yrId = `yr_${yearToDelete.replace(/\//g, "-")}`;
         await deleteDoc(doc(db, "academicYears", yrId));
+
+        const qYears = query(collection(db, "academicYears"), where("year", "==", yearToDelete));
+        const snapYears = await getDocs(qYears);
+        for (const yrDoc of snapYears.docs) {
+          await deleteDoc(yrDoc.ref);
+        }
       } catch (e) {
         console.error("Error deleting year config:", e);
       }
-      setAcademicYears((prev) => prev.filter((y) => y !== yearToDelete));
+
+      setAcademicYears((prev) => {
+        const updated = prev.filter((y) => y !== yearToDelete);
+        if (selectedAcademicYear === yearToDelete) {
+          setSelectedAcademicYear(updated.length > 0 ? updated[0] : "ALL");
+        }
+        return updated;
+      });
     }
 
     // Update Local States
@@ -902,8 +922,6 @@ export default function App() {
     new Set([
       ...subjects.flatMap((s) => s.classes || []),
       ...students.map((s) => s.classRoom),
-      "ม.1/1",
-      "ม.1/2",
     ])
   ).filter(Boolean);
 
