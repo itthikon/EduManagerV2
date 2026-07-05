@@ -291,7 +291,7 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
 
       const parsed: Omit<Student, "id" | "createdAt">[] = [];
       const targetTerm = selectedTerm === "ALL" ? "1" : selectedTerm;
-      const targetYr = selectedAcademicYear === "ALL" ? "2568" : selectedAcademicYear;
+      const targetYr = selectedAcademicYear === "ALL" ? (academicYears[0] || "2568") : selectedAcademicYear;
       const fallbackClass = selectedClass !== "ALL" ? selectedClass : (allClasses.find((c) => c !== "ALL") || "ม.1/1");
 
       for (const sheetName of workbook.SheetNames) {
@@ -521,7 +521,7 @@ const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaul
 
       const lines = batchText.trim().split("\n");
       const targetTerm = selectedTerm === "ALL" ? "1" : selectedTerm;
-      const targetYr = selectedAcademicYear === "ALL" ? "2568" : selectedAcademicYear;
+      const targetYr = selectedAcademicYear === "ALL" ? (academicYears[0] || "2568") : selectedAcademicYear;
 
       lines.forEach((line) => {
         const parts = line.split(/[,;\t]/).map((p) => p.trim());

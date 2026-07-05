@@ -535,7 +535,25 @@ export default function App() {
   };
 
   const filteredSubjects = filterByTermAndYear(subjects);
-  const filteredStudents = filterByTermAndYear(students);
+  // Filter students by teacher and academic year (Students remain valid across terms 1 and 2 in a school year)
+  const filteredStudents = students.filter((item) => {
+    // 1. Teacher isolation check
+    if (user?.uid && item.teacherId && item.teacherId !== user.uid && item.teacherId !== "demo" && item.teacherId !== "") {
+      return false;
+    }
+
+    // 2. Academic Year check
+    if (selectedAcademicYear === "ALL") return true;
+    if (!item.academicYear) return true;
+    if (item.academicYear === selectedAcademicYear) return true;
+
+    // Fallback: If no student in the database matches this specific selectedAcademicYear for item's classroom,
+    // show existing students for that classroom so the teacher doesn't lose sight of imported roster!
+    const hasYearSpecificStudentsInRoom = students.some(
+      (s) => s.classRoom === item.classRoom && s.academicYear === selectedAcademicYear
+    );
+    return !hasYearSpecificStudentsInRoom;
+  });
   const filteredAssignments = filterByTermAndYear(assignments);
   const filteredSubmissions = filterByTermAndYear(submissions);
 
@@ -578,9 +596,13 @@ export default function App() {
   // CRUD Handler - Students
   const handleAddStudent = async (data: Omit<Student, "id" | "createdAt">) => {
     const currentTeacher = user?.uid || "demo";
+    const activeYear = selectedAcademicYear !== "ALL" ? selectedAcademicYear : (academicYears[0] || "2568");
+    const activeTerm = selectedTerm !== "ALL" ? selectedTerm : "1";
     const newId = `st_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const newDoc: Student = {
       ...data,
+      academicYear: data.academicYear || activeYear,
+      term: data.term || activeTerm,
       id: newId,
       teacherId: data.teacherId || currentTeacher,
       createdAt: new Date().toISOString(),
@@ -596,8 +618,12 @@ export default function App() {
 
   const handleBatchAddStudents = async (list: Omit<Student, "id" | "createdAt">[]) => {
     const currentTeacher = user?.uid || "demo";
+    const activeYear = selectedAcademicYear !== "ALL" ? selectedAcademicYear : (academicYears[0] || "2568");
+    const activeTerm = selectedTerm !== "ALL" ? selectedTerm : "1";
     const newDocs: Student[] = list.map((item, idx) => ({
       ...item,
+      academicYear: item.academicYear || activeYear,
+      term: item.term || activeTerm,
       id: `st_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
       teacherId: item.teacherId || currentTeacher,
       createdAt: new Date().toISOString(),
