@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   GraduationCap,
   Plus,
@@ -36,6 +36,16 @@ export const AssignmentManager: React.FC<AssignmentManagerProps> = ({
     subjects[0]?.id || ""
   );
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>("ALL");
+
+  useEffect(() => {
+    if (subjects.length > 0) {
+      if (!selectedSubjectId || !subjects.some((s) => s.id === selectedSubjectId)) {
+        setSelectedSubjectId(subjects[0].id);
+      }
+    } else {
+      setSelectedSubjectId("");
+    }
+  }, [subjects]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -191,12 +201,15 @@ export const AssignmentManager: React.FC<AssignmentManagerProps> = ({
             }}
             className="w-full px-3 py-2 text-xs bg-[#111113] border border-white/20 focus:border-[#00FF66] font-bold text-[#00FF66] focus:outline-none"
           >
-            {subjects.length === 0 && <option value="">NO_SUBJECTS</option>}
-            {subjects.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.code} - {s.name}
-              </option>
-            ))}
+            {subjects.length === 0 ? (
+              <option value="">NO_SUBJECTS</option>
+            ) : (
+              subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.code} - {s.name || "วิชาที่เลือก"}
+                </option>
+              ))
+            )}
           </select>
         </div>
 

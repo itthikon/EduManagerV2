@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Bell,
   Send,
@@ -53,6 +53,14 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
     subjects[0]?.id || "ALL"
   );
+
+  useEffect(() => {
+    if (subjects.length > 0) {
+      if (selectedSubjectId !== "ALL" && !subjects.some((s) => s.id === selectedSubjectId)) {
+        setSelectedSubjectId(subjects[0].id);
+      }
+    }
+  }, [subjects]);
 
   // Line Configuration inputs
   const [channelToken, setChannelToken] = useState("");

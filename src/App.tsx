@@ -534,7 +534,23 @@ export default function App() {
     });
   };
 
-  const filteredSubjects = filterByTermAndYear(subjects);
+  const filteredSubjects = subjects.filter((item) => {
+    if (user?.uid && item.teacherId && item.teacherId !== user.uid && item.teacherId !== "demo" && item.teacherId !== "") {
+      return false;
+    }
+
+    const matchTerm = selectedTerm === "ALL" || !item.term || item.term === selectedTerm;
+    if (!matchTerm) return false;
+
+    if (selectedAcademicYear === "ALL") return true;
+    if (!item.academicYear) return true;
+    if (item.academicYear === selectedAcademicYear) return true;
+
+    const hasYearSpecificSubjects = subjects.some(
+      (s) => s.academicYear === selectedAcademicYear
+    );
+    return !hasYearSpecificSubjects;
+  });
   // Filter students by teacher and academic year (Students remain valid across terms 1 and 2 in a school year)
   const filteredStudents = students.filter((item) => {
     // 1. Teacher isolation check
@@ -559,11 +575,16 @@ export default function App() {
 
   // CRUD Handler - Subjects
   const handleAddSubject = async (data: Omit<Subject, "id" | "createdAt">) => {
+    const currentTeacher = user?.uid || "demo";
+    const activeYear = selectedAcademicYear !== "ALL" ? selectedAcademicYear : (academicYears[0] || "2568");
+    const activeTerm = selectedTerm !== "ALL" ? selectedTerm : "1";
     const newId = `sub_${Date.now()}`;
     const newDoc: Subject = {
       ...data,
+      academicYear: data.academicYear || activeYear,
+      term: data.term || activeTerm,
       id: newId,
-      teacherId: user?.uid || "demo",
+      teacherId: data.teacherId || currentTeacher,
       createdAt: new Date().toISOString(),
     };
 

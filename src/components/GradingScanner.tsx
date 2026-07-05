@@ -56,6 +56,17 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
 
   // Camera QR Scanner state
   const [isCameraActive, setIsCameraActive] = useState(false);
+
+  // Auto-sync selectedSubjectId when subjects load
+  useEffect(() => {
+    if (subjects.length > 0) {
+      if (!selectedSubjectId || !subjects.some((s) => s.id === selectedSubjectId)) {
+        setSelectedSubjectId(subjects[0].id);
+      }
+    } else {
+      setSelectedSubjectId("");
+    }
+  }, [subjects]);
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -539,11 +550,15 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
             onChange={(e) => setSelectedSubjectId(e.target.value)}
             className="w-full px-3 py-2.5 text-xs bg-black/60 border border-white/15 focus:border-emerald-500 font-bold text-emerald-400 rounded-xl focus:outline-none"
           >
-            {subjects.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.code} - {s.name}
-              </option>
-            ))}
+            {subjects.length === 0 ? (
+              <option value="">NO_SUBJECTS</option>
+            ) : (
+              subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.code} - {s.name || "วิชาที่เลือก"}
+                </option>
+              ))
+            )}
           </select>
         </div>
 
