@@ -15,11 +15,13 @@ import { auth, db, handleFirestoreError, OperationType } from "./lib/firebase";
 import {
   Assignment,
   LineConfig,
+  ScheduledNotification,
   Student,
   Subject,
   Submission,
   UserProfile,
 } from "./types";
+import { buildNotificationMessage } from "./lib/notificationBuilder";
 import { Navbar } from "./components/Navbar";
 import { DashboardOverview } from "./components/DashboardOverview";
 import { SubjectManager } from "./components/SubjectManager";
@@ -154,6 +156,7 @@ export default function App() {
   const [assignments, setAssignments] = useState<Assignment[]>(INITIAL_ASSIGNMENTS);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [lineConfigs, setLineConfigs] = useState<LineConfig[]>([]);
+  const [scheduledNotifications, setScheduledNotifications] = useState<ScheduledNotification[]>([]);
 
   // Auth state change listener
   useEffect(() => {
@@ -269,6 +272,21 @@ export default function App() {
       }
     );
 
+    // 6. ScheduledNotifications Listener
+    const unsubSchedules = onSnapshot(
+      collection(db, "scheduledNotifications"),
+      (snapshot) => {
+        const list: ScheduledNotification[] = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        })) as ScheduledNotification[];
+        setScheduledNotifications(list);
+      },
+      (error) => {
+        console.warn("ScheduledNotifications snapshot error:", error);
+      }
+    );
+
     return () => {
       unsubYears();
       unsubSubjects();
@@ -276,6 +294,7 @@ export default function App() {
       unsubAssignments();
       unsubSubmissions();
       unsubLine();
+      unsubSchedules();
     };
   }, []);
 
@@ -597,6 +616,151 @@ export default function App() {
     }
   };
 
+  // CRUD Handler - Scheduled Notifications
+  const handleSaveScheduledNotification = async (
+    data: Omit<ScheduledNotification, "id" | "createdAt"> & { id?: string }
+  ) => {
+    const schId = data.id || `sch_${Date.now()}`;
+    const newDoc: ScheduledNotification = {
+      ...data,
+      id: schId,
+      teacherId: user?.uid || "demo",
+      createdAt: new Date().toISOString(),
+    };
+
+    setScheduledNotifications((prev) => {
+      const idx = prev.findIndex((s) => s.id === schId);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = newDoc;
+        return copy;
+      }
+      return [...prev, newDoc];
+    });
+
+    try {
+      await setDoc(doc(db, "scheduledNotifications", schId), newDoc);
+    } catch (e) {
+      console.error("Firestore save schedule error:", e);
+    }
+  };
+
+  const handleDeleteScheduledNotification = async (id: string) => {
+    setScheduledNotifications((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await deleteDoc(doc(db, "scheduledNotifications", id));
+    } catch (e) {
+      console.error("Firestore delete schedule error:", e);
+    }
+  };
+
+  const handleToggleScheduledNotification = async (id: string, enabled: boolean) => {
+    setScheduledNotifications((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, enabled } : s))
+    );
+    try {
+      await updateDoc(doc(db, "scheduledNotifications", id), { enabled });
+    } catch (e) {
+      console.error("Firestore toggle schedule error:", e);
+    }
+  };
+
+  const handleExecuteScheduledNotification = async (sch: ScheduledNotification) => {
+    const config = lineConfigs.find((c) => c.classRoom === sch.classRoom);
+    if (!config || (!config.channelAccessToken && !config.notifyToken)) {
+      return { success: false, error: `ยังไม่ได้ตั้งค่า Token สำหรับห้อง ${sch.classRoom}` };
+    }
+
+    const msg = buildNotificationMessage({
+      reportType: sch.reportType,
+      subjectId: sch.subjectId,
+      classRoom: sch.classRoom,
+      assignmentId: sch.assignmentId,
+      subjects,
+      students,
+      assignments,
+      submissions,
+    });
+
+    if (!msg) {
+      return { success: false, error: "ไม่พบข้อมูลข้อความสำหรับการส่ง" };
+    }
+
+    try {
+      const res = await fetch("/api/line-notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channelAccessToken: config.channelAccessToken,
+          targetId: config.targetUserId,
+          notifyToken: config.notifyToken,
+          message: msg,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const nowIso = new Date().toISOString();
+        setScheduledNotifications((prev) =>
+          prev.map((s) => (s.id === sch.id ? { ...s, lastExecutedAt: nowIso } : s))
+        );
+        try {
+          await updateDoc(doc(db, "scheduledNotifications", sch.id), {
+            lastExecutedAt: nowIso,
+          });
+        } catch (e) {
+          console.error("Firestore update lastExecutedAt error:", e);
+        }
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || "เกิดข้อผิดพลาดจาก LINE API" };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ" };
+    }
+  };
+
+  // Background Auto-Scheduler Loop (runs every 30s)
+  useEffect(() => {
+    const checkSchedules = async () => {
+      if (scheduledNotifications.length === 0) return;
+
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+      const currentHM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const dayOfWeek = now.getDay();
+
+      for (const sch of scheduledNotifications) {
+        if (!sch.enabled) continue;
+
+        if (sch.lastExecutedAt) {
+          const lastRun = new Date(sch.lastExecutedAt);
+          const diffMs = now.getTime() - lastRun.getTime();
+          if (diffMs < 90000) continue;
+        }
+
+        let shouldRun = false;
+        if (sch.scheduleType === "specific") {
+          if (sch.scheduledDate === todayStr && sch.scheduledTime === currentHM) {
+            shouldRun = true;
+          }
+        } else if (sch.scheduleType === "recurring") {
+          if (sch.recurringDays?.includes(dayOfWeek) && sch.scheduledTime === currentHM) {
+            shouldRun = true;
+          }
+        }
+
+        if (shouldRun) {
+          console.log(`⏰ Auto-running LINE schedule [${sch.title}] for class ${sch.classRoom}`);
+          await handleExecuteScheduledNotification(sch);
+        }
+      }
+    };
+
+    const interval = setInterval(checkSchedules, 30000);
+    return () => clearInterval(interval);
+  }, [scheduledNotifications, subjects, students, assignments, submissions, lineConfigs]);
+
   // Available classrooms extracted across subjects and students
   const availableClasses = Array.from(
     new Set([
@@ -691,7 +855,12 @@ export default function App() {
             assignments={filteredAssignments}
             submissions={filteredSubmissions}
             lineConfigs={lineConfigs}
+            scheduledNotifications={scheduledNotifications}
             onSaveLineConfig={handleSaveLineConfig}
+            onSaveScheduledNotification={handleSaveScheduledNotification}
+            onDeleteScheduledNotification={handleDeleteScheduledNotification}
+            onToggleScheduledNotification={handleToggleScheduledNotification}
+            onExecuteScheduledNotification={handleExecuteScheduledNotification}
           />
         )}
       </main>

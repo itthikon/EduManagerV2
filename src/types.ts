@@ -87,6 +87,23 @@ export interface LineConfig {
   updatedAt: string;
 }
 
+export interface ScheduledNotification {
+  id: string;
+  teacherId: string;
+  title: string;                 // ชื่อรายการตั้งเวลา
+  classRoom: string;            // ห้องเรียน e.g. "ม.1/1"
+  subjectId: string;            // ID วิชา หรือ "ALL" (ทุกวิชา)
+  reportType: "missing_subject" | "missing_task" | "completed" | "grades"; // ประเภทรายงาน
+  assignmentId?: string;        // กรณีเลือกภาระงานเดี่ยว
+  scheduleType: "specific" | "recurring"; // ชนิดการตั้งเวลา: ระบุวันเวลา หรือ ประจำสัปดาห์
+  scheduledDate?: string;       // e.g. "2026-07-10"
+  scheduledTime: string;        // e.g. "09:00", "16:30"
+  recurringDays?: number[];     // e.g. [1, 2, 3, 4, 5] (1=Monday...7/0=Sunday)
+  enabled: boolean;             // เปิด/ปิด การใช้งาน
+  lastExecutedAt?: string;      // วันเวลาที่ส่งล่าสุด
+  createdAt: string;
+}
+
 export interface StudentGradeSummary {
   student: Student;
   preMidtermScore: number;    // คะแนนเก็บก่อนเรียน/ก่อนกลางภาค ที่ได้

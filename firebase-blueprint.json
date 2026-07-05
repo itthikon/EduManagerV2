@@ -103,6 +103,23 @@
       },
       "required": ["teacherId", "classRoom"]
     },
+    "scheduledNotifications": {
+      "title": "Scheduled Notifications",
+      "description": "Automated scheduled LINE notifications per classroom and subject",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string" },
+        "title": { "type": "string" },
+        "classRoom": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "reportType": { "type": "string" },
+        "scheduleType": { "type": "string" },
+        "scheduledTime": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "title", "classRoom", "subjectId", "reportType", "scheduledTime", "enabled"]
+    },
     "academicYears": {
       "title": "Academic Years",
       "description": "Academic years configuration",

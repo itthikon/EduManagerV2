@@ -32,6 +32,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Scheduled Notifications rule
+    match /scheduledNotifications/{scheduleId} {
+      allow read, write: if true;
+    }
+
     // Academic Years rule
     match /academicYears/{yearId} {
       allow read, write: if true;
