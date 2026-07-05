@@ -158,6 +158,104 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     }
   };
 
+// Helper to parse Thai full name (e.g. "นาย ธีระพัฒน์ เหง้าโอสา" or "นางสาว ชลลดา หลาบโพธิ์")
+const parseThaiName = (rawName: string): { prefix: string; firstName: string; lastName: string } => {
+  let name = rawName.trim().replace(/\s+/g, " ");
+  if (!name) return { prefix: "เด็กชาย", firstName: "", lastName: "" };
+
+  const prefixes = [
+    { regex: /^นางสาว\s*/i, result: "นางสาว" },
+    { regex: /^น\.ส\.\s*/i, result: "นางสาว" },
+    { regex: /^น\.ส\s*/i, result: "นางสาว" },
+    { regex: /^เด็กชาย\s*/i, result: "เด็กชาย" },
+    { regex: /^ด\.ช\.\s*/i, result: "เด็กชาย" },
+    { regex: /^ด\.ช\s*/i, result: "เด็กชาย" },
+    { regex: /^เด็กหญิง\s*/i, result: "เด็กหญิง" },
+    { regex: /^ด\.ญ\.\s*/i, result: "เด็กหญิง" },
+    { regex: /^ด\.ญ\s*/i, result: "เด็กหญิง" },
+    { regex: /^นาย\s*/i, result: "นาย" },
+    { regex: /^นาง\s*/i, result: "นาง" },
+    { regex: /^Mr\.\s*/i, result: "นาย" },
+    { regex: /^Miss\s*/i, result: "นางสาว" },
+    { regex: /^Ms\.\s*/i, result: "นางสาว" },
+    { regex: /^Mrs\.\s*/i, result: "นาง" },
+  ];
+
+  let prefix = "";
+  for (const p of prefixes) {
+    if (p.regex.test(name)) {
+      prefix = p.result;
+      name = name.replace(p.regex, "").trim();
+      break;
+    }
+  }
+
+  // Fallback prefix matching without trailing space
+  if (!prefix) {
+    if (name.startsWith("นางสาว")) {
+      prefix = "นางสาว";
+      name = name.substring(6).trim();
+    } else if (name.startsWith("นาย")) {
+      prefix = "นาย";
+      name = name.substring(3).trim();
+    } else if (name.startsWith("เด็กชาย")) {
+      prefix = "เด็กชาย";
+      name = name.substring(7).trim();
+    } else if (name.startsWith("เด็กหญิง")) {
+      prefix = "เด็กหญิง";
+      name = name.substring(8).trim();
+    } else if (name.startsWith("นาง")) {
+      prefix = "นาง";
+      name = name.substring(3).trim();
+    } else if (name.startsWith("ด.ช.")) {
+      prefix = "เด็กชาย";
+      name = name.substring(4).trim();
+    } else if (name.startsWith("ด.ญ.")) {
+      prefix = "เด็กหญิง";
+      name = name.substring(4).trim();
+    } else if (name.startsWith("น.ส.")) {
+      prefix = "นางสาว";
+      name = name.substring(4).trim();
+    }
+  }
+
+  if (!prefix) {
+    prefix = "เด็กชาย";
+  }
+
+  const parts = name.split(/\s+/).filter(Boolean);
+  const firstName = parts[0] || "";
+  const lastName = parts.slice(1).join(" ") || "";
+
+  return { prefix, firstName, lastName };
+};
+
+const extractClassroomFromTextOrSheet = (text: string, sheetName: string, defaultClass: string): string => {
+  const m1 = text.match(/ชั้น\s*([ม\d\.\/]+)/i) || text.match(/(ม\.\d+\/\d+)/i) || text.match(/(\d+\/\d+)/);
+  if (m1 && m1[1]) {
+    let cls = m1[1].trim();
+    if (cls.startsWith("ม.") || cls.includes("/")) return cls;
+    if (/^\d\/\d+$/.test(cls)) return `ม.${cls}`;
+    return cls;
+  }
+
+  if (sheetName) {
+    const m2 = sheetName.match(/(ม\.\d+\/\d+)/i) || sheetName.match(/(\d+\/\d+)/);
+    if (m2 && m2[1]) {
+      let cls = m2[1].trim();
+      if (/^\d\/\d+$/.test(cls)) return `ม.${cls}`;
+      return cls;
+    }
+    if (/^\d{3}$/.test(sheetName.trim())) {
+      const level = sheetName.trim()[0];
+      const room = parseInt(sheetName.trim().substring(1), 10);
+      return `ม.${level}/${room}`;
+    }
+  }
+
+  return defaultClass;
+};
+
   // Handle Excel File Selection
   const handleExcelFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -170,94 +268,131 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });
-      const sheetName = workbook.SheetNames[0];
-      if (!sheetName) {
+
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
         setExcelError("ไม่พบ Sheet ข้อมูลในไฟล์ Excel");
         setLoading(false);
         return;
       }
 
-      const worksheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, defval: "" });
-
-      if (rows.length === 0) {
-        setExcelError("ไฟล์ Excel ว่างเปล่า ไม่มีข้อมูลนักเรียน");
-        setLoading(false);
-        return;
-      }
-
-      // Check header row
-      const firstRow = rows[0].map((cell: any) => String(cell).trim().toLowerCase());
-      const hasHeader = firstRow.some((cell: string) =>
-        ["รหัส", "id", "ชื่อ", "name", "คำนำหน้า", "ห้อง", "class", "เลขที่", "number"].some((keyword) => cell.includes(keyword))
-      );
-
       const parsed: Omit<Student, "id" | "createdAt">[] = [];
-      const startIdx = hasHeader ? 1 : 0;
-
       const targetTerm = selectedTerm === "ALL" ? "1" : selectedTerm;
       const targetYr = selectedAcademicYear === "ALL" ? "2568" : selectedAcademicYear;
+      const fallbackClass = selectedClass !== "ALL" ? selectedClass : allClasses[0] || "ม.4/1";
 
-      for (let i = startIdx; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length === 0 || row.every((c: any) => String(c).trim() === "")) continue;
+      for (const sheetName of workbook.SheetNames) {
+        const worksheet = workbook.Sheets[sheetName];
+        if (!worksheet) continue;
 
-        let sId = "";
-        let pfx = "เด็กชาย";
-        let fName = "";
-        let lName = "";
-        let cls = selectedClass !== "ALL" ? selectedClass : allClasses[0] || "ม.1/1";
-        let num = parsed.length + 1;
+        const rows = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, defval: "" });
+        if (!rows || rows.length === 0) continue;
 
-        if (hasHeader) {
-          const headerRow = rows[0].map((c: any) => String(c).trim());
-          headerRow.forEach((h: string, colIdx: number) => {
-            const val = String(row[colIdx] || "").trim();
-            const hl = h.toLowerCase();
-            if (hl.includes("รหัส") || hl.includes("id")) sId = val;
-            else if (hl.includes("คำนำหน้า") || hl.includes("prefix")) pfx = val;
-            else if (hl.includes("ชื่อ") && !hl.includes("นามสกุล") && !hl.includes("คำนำหน้า")) fName = val;
-            else if (hl.includes("นามสกุล") || hl.includes("surname") || hl.includes("lastname")) lName = val;
-            else if (hl.includes("ห้อง") || hl.includes("class")) cls = val;
-            else if (hl.includes("เลขที่") || hl.includes("number") || hl.includes("no")) num = Number(val) || num;
-          });
+        let extractedClass = "";
+        let headerRowIndex = -1;
+        let numColIndex = -1;
+        let idColIndex = -1;
+        let nameColIndex = -1;
+        let pfxColIndex = -1;
+        let fNameColIndex = -1;
+        let lNameColIndex = -1;
+        let classColIndex = -1;
+
+        for (let r = 0; r < Math.min(10, rows.length); r++) {
+          const rowStr = (rows[r] || []).map((c: any) => String(c).trim()).join(" ");
+          if (!extractedClass) {
+            extractedClass = extractClassroomFromTextOrSheet(rowStr, sheetName, "");
+          }
+
+          const rowLower = (rows[r] || []).map((c: any) => String(c).trim().toLowerCase());
+          const hasHeaderKeywords = rowLower.some((cell: string) =>
+            ["เลข", "รหัส", "ชื่อ", "id", "name", "คำนำหน้า", "ห้อง"].some((kw) => cell.includes(kw))
+          );
+
+          if (hasHeaderKeywords && headerRowIndex === -1) {
+            headerRowIndex = r;
+            rowLower.forEach((cell: string, cIdx: number) => {
+              if (cell.includes("เลข") || cell === "no" || cell === "number" || cell === "ลำดับ") numColIndex = cIdx;
+              else if (cell.includes("รหัส") || cell === "id" || cell.includes("student_id")) idColIndex = cIdx;
+              else if (cell.includes("คำนำหน้า") || cell === "prefix") pfxColIndex = cIdx;
+              else if (cell.includes("ชื่อ") && cell.includes("สกุล")) nameColIndex = cIdx;
+              else if (cell.includes("ชื่อ") && !cell.includes("นามสกุล") && !cell.includes("คำนำหน้า")) fNameColIndex = cIdx;
+              else if (cell.includes("นามสกุล") || cell.includes("surname") || cell.includes("lastname")) lNameColIndex = cIdx;
+              else if (cell.includes("ห้อง") || cell.includes("ชั้น") || cell === "class") classColIndex = cIdx;
+            });
+          }
         }
 
-        // Fallbacks by position if incomplete
-        if (!sId && row[0]) sId = String(row[0]).trim();
-        if (!fName) {
-          if (row[2]) fName = String(row[2]).trim();
-          else if (row[1]) fName = String(row[1]).trim();
-        }
-        if (!lName && row[3]) lName = String(row[3]).trim();
-        if (!cls && row[4]) cls = String(row[4]).trim();
-        if (row[5] && !isNaN(Number(row[5]))) num = Number(row[5]);
+        const finalClass = extractedClass || extractClassroomFromTextOrSheet("", sheetName, fallbackClass);
 
-        // Clean up prefix
-        if (pfx) {
-          if (pfx.startsWith("ด.ช") || pfx.includes("เด็กชาย")) pfx = "เด็กชาย";
-          else if (pfx.startsWith("ด.ญ") || pfx.includes("เด็กหญิง")) pfx = "เด็กหญิง";
-          else if (pfx.includes("นาย")) pfx = "นาย";
-          else if (pfx.includes("นางสาว") || pfx.startsWith("น.ส.")) pfx = "นางสาว";
-        }
+        if (numColIndex === -1) numColIndex = 0;
+        if (idColIndex === -1) idColIndex = 1;
+        if (nameColIndex === -1) nameColIndex = 2;
 
-        if (sId && fName) {
-          parsed.push({
-            teacherId: "",
-            studentId: sId,
-            prefix: pfx || "เด็กชาย",
-            firstName: fName,
-            lastName: lName || "",
-            classRoom: cls || (selectedClass !== "ALL" ? selectedClass : "ม.1/1"),
-            number: Number(num) || parsed.length + 1,
-            term: targetTerm,
-            academicYear: targetYr,
-          });
+        const startIdx = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
+
+        for (let i = startIdx; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length === 0 || row.every((c: any) => String(c).trim() === "")) continue;
+
+          const valNum = String(row[numColIndex] || "").trim();
+          const valId = String(row[idColIndex] || "").trim();
+          const valName = String(row[nameColIndex] || "").trim();
+          const valPfx = pfxColIndex >= 0 ? String(row[pfxColIndex] || "").trim() : "";
+          const valFName = fNameColIndex >= 0 ? String(row[fNameColIndex] || "").trim() : "";
+          const valLName = lNameColIndex >= 0 ? String(row[lNameColIndex] || "").trim() : "";
+          const valCls = classColIndex >= 0 ? String(row[classColIndex] || "").trim() : "";
+
+          if (valId.includes("รหัส") || valName.includes("ชื่อ") || valNum.includes("เลข")) continue;
+          if (valId.includes("รายชื่อ") || valName.includes("ครูที่ปรึกษา") || valNum.includes("รายชื่อ")) continue;
+
+          let studentId = valId;
+          let prefix = "เด็กชาย";
+          let firstName = "";
+          let lastName = "";
+          let classRoom = valCls || finalClass;
+          let number = Number(valNum) || parsed.length + 1;
+
+          if (valFName) {
+            firstName = valFName;
+            lastName = valLName;
+            if (valPfx) prefix = valPfx;
+            else {
+              const parsedPfx = parseThaiName(firstName);
+              prefix = parsedPfx.prefix;
+              firstName = parsedPfx.firstName;
+              if (!lastName) lastName = parsedPfx.lastName;
+            }
+          } else if (valName) {
+            const parsedName = parseThaiName(valName);
+            prefix = parsedName.prefix;
+            firstName = parsedName.firstName;
+            lastName = parsedName.lastName;
+          } else if (valId && !/^\d+$/.test(valId) && valId.length > 3) {
+            const parsedName = parseThaiName(valId);
+            prefix = parsedName.prefix;
+            firstName = parsedName.firstName;
+            lastName = parsedName.lastName;
+            studentId = `${10001 + parsed.length}`;
+          }
+
+          if (studentId && firstName) {
+            parsed.push({
+              teacherId: "",
+              studentId,
+              prefix,
+              firstName,
+              lastName,
+              classRoom,
+              number: Number(number) || parsed.length + 1,
+              term: targetTerm,
+              academicYear: targetYr,
+            });
+          }
         }
       }
 
       if (parsed.length === 0) {
-        setExcelError("ไม่สามารถดึงข้อมูลรายชื่อนักเรียนจากไฟล์ Excel ได้ กรุณาตรวจสอบรูปแบบคอลัมน์");
+        setExcelError("ไม่สามารถดึงข้อมูลรายชื่อนักเรียนจากไฟล์ Excel ได้ กรุณาตรวจสอบรูปแบบไฟล์");
       } else {
         setParsedPreview(parsed);
       }
@@ -272,29 +407,32 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
   // Download Excel Template
   const handleDownloadExcelTemplate = () => {
     const templateData = [
-      ["รหัสนักเรียน", "คำนำหน้า", "ชื่อ", "นามสกุล", "ห้องเรียน", "เลขที่"],
-      ["10001", "เด็กชาย", "กิตติพงษ์", "มั่นคง", "ม.1/1", 1],
-      ["10002", "เด็กชาย", "ชินวุฒิ", "สุขเจริญ", "ม.1/1", 2],
-      ["10003", "เด็กหญิง", "ณัฐนิชา", "ประเสริฐศิลป์", "ม.1/1", 3],
-      ["10004", "เด็กหญิง", "ธนพร", "วิเศษกุล", "ม.1/1", 4],
-      ["10005", "เด็กชาย", "ปัณณธร", "เลิศวรชัย", "ม.1/1", 5],
+      ["รายชื่อนักเรียน ชั้น ม.4/1"],
+      ["ครูที่ปรึกษา 1.นางสาวศิริลักษณ์ วังวงค์ 2.นายวุฒิพงษ์ แผนสุพัด"],
+      ["เลข", "รหัสนักเรียน", "ชื่อ สกุล"],
+      [1, "8233", "นาย ธีระพัฒน์ เหง้าโอสา"],
+      [2, "8234", "นาย นนทพัทธ์ รักล้วน"],
+      [3, "8236", "นาย ปราดยาวงศ์ โสมมา"],
+      [4, "8237", "นาย พัทธดนย์ เชื้อคำจันทร์"],
+      [5, "8246", "นางสาว ชลลดา หลาบโพธิ์"],
+      [6, "8248", "นางสาว ณัฐริกา นาคมุนี"],
+      [7, "8250", "นางสาว ทิพปภา เชื้อวังคำ"],
+      [8, "8251", "นางสาว น้ำอ้อย เชื้อคำจันทร์"],
+      [9, "8255", "นางสาว เพชรมณี สิงห์งอย"],
+      [10, "8256", "นางสาว วิมลทิพย์ ไชยเพชร"],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(templateData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "รายชื่อนักเรียน");
+    XLSX.utils.book_append_sheet(wb, ws, "401");
 
-    // Set column widths
     ws["!cols"] = [
-      { wch: 15 },
-      { wch: 12 },
-      { wch: 18 },
-      { wch: 20 },
-      { wch: 12 },
       { wch: 8 },
+      { wch: 15 },
+      { wch: 32 },
     ];
 
-    XLSX.writeFile(wb, "แบบฟอร์มนำเข้านักเรียน_Excel.xlsx");
+    XLSX.writeFile(wb, "แบบฟอร์มนำเข้านักเรียน_ม4_1.xlsx");
   };
 
   const handleBatchSubmit = async (e: React.FormEvent) => {
@@ -317,21 +455,53 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
       lines.forEach((line) => {
         const parts = line.split(/[,;\t]/).map((p) => p.trim());
-        if (parts.length >= 4) {
-          const sId = parts[0];
-          let pfx = parts[1];
-          let fName = parts[2];
-          let lName = parts[3];
-          let cls = parts[4] || (selectedClass !== "ALL" ? selectedClass : allClasses[0] || "ม.1/1");
-          let num = Number(parts[5]) || listToImport.length + 1;
+        if (parts.length >= 2) {
+          let sId = "";
+          let fullName = "";
+          let num = listToImport.length + 1;
+          let cls = selectedClass !== "ALL" ? selectedClass : allClasses[0] || "ม.4/1";
 
-          if (sId && fName) {
+          if (/^\d+$/.test(parts[0]) && parts.length >= 3 && !/^\d{4,}$/.test(parts[0])) {
+            num = Number(parts[0]) || num;
+            sId = parts[1];
+            fullName = parts[2];
+            if (parts[3]) cls = parts[3];
+          } else if (parts.length >= 4 && parts.length <= 6 && parts[1].length <= 10) {
+            sId = parts[0];
+            const pfx = parts[1];
+            const fName = parts[2];
+            const lName = parts[3];
+            cls = parts[4] || cls;
+            num = Number(parts[5]) || num;
+
+            if (sId && fName) {
+              listToImport.push({
+                teacherId: "",
+                studentId: sId,
+                prefix: pfx || "เด็กชาย",
+                firstName: fName,
+                lastName: lName || "",
+                classRoom: cls,
+                number: num,
+                term: targetTerm,
+                academicYear: targetYr,
+              });
+              return;
+            }
+          } else {
+            sId = parts[0];
+            fullName = parts[1];
+            if (parts[2]) cls = parts[2];
+          }
+
+          if (sId && fullName) {
+            const parsedName = parseThaiName(fullName);
             listToImport.push({
               teacherId: "",
               studentId: sId,
-              prefix: pfx || "เด็กชาย",
-              firstName: fName,
-              lastName: lName || "",
+              prefix: parsedName.prefix,
+              firstName: parsedName.firstName,
+              lastName: parsedName.lastName,
               classRoom: cls,
               number: num,
               term: targetTerm,
@@ -342,7 +512,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
       });
 
       if (listToImport.length === 0) {
-        alert("ไม่พบรูปแบบข้อมูลที่ถูกต้อง (ตัวอย่าง: 10001, เด็กชาย, สมชาย, ใจดี, ม.1/1, 1)");
+        alert("ไม่พบรูปแบบข้อมูลที่ถูกต้อง (ตัวอย่าง: 1, 8233, นาย ธีระพัฒน์ เหง้าโอสา)");
         return;
       }
     }
@@ -811,7 +981,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         📥 ไฟล์ตัวอย่างสำหรับนำเข้าข้อมูล
                       </p>
                       <p className="text-[11px] text-white/50 font-['Geist'] mt-0.5">
-                        คอลัมน์มาตรฐาน: รหัสนักเรียน, คำนำหน้า, ชื่อ, นามสกุล, ห้องเรียน, เลขที่
+                        รองรับรูปแบบมาตรฐาน และรูปแบบราชการ: [เลข], [รหัสนักเรียน], [ชื่อ สกุล] (คำนำหน้า+ชื่อ+นามสกุล รวมในช่องเดียว)
                       </p>
                     </div>
                     <button
