@@ -65,7 +65,6 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
   // Line Configuration inputs
   const [channelToken, setChannelToken] = useState("");
   const [targetId, setTargetId] = useState("");
-  const [notifyToken, setNotifyToken] = useState("");
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ type: "success" | "error"; msg: string } | null>(null);
@@ -114,11 +113,9 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
     if (currentConfig) {
       setChannelToken(currentConfig.channelAccessToken || "");
       setTargetId(currentConfig.targetUserId || "");
-      setNotifyToken(currentConfig.notifyToken || "");
     } else {
       setChannelToken("");
       setTargetId("");
-      setNotifyToken("");
     }
   }, [selectedClass, currentConfig]);
 
@@ -186,10 +183,10 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
 
   // Save LINE config for selected class
   const handleSaveConfig = async () => {
-    if (!channelToken.trim() && !notifyToken.trim()) {
+    if (!channelToken.trim() || !targetId.trim()) {
       setTestResult({
         type: "error",
-        msg: "กรุณากรอก Line Channel Access Token หรือ Notify Token ก่อนบันทึก",
+        msg: "กรุณากรอก Line Access Token และ Line Group ID ให้ครบถ้วนก่อนบันทึก",
       });
       return;
     }
@@ -202,7 +199,6 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
         classRoom: selectedClass,
         channelAccessToken: channelToken.trim(),
         targetUserId: targetId.trim(),
-        notifyToken: notifyToken.trim(),
       });
       setTestResult({
         type: "success",
@@ -222,10 +218,10 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
   const handleSendDirectNotification = async () => {
     if (!messageText.trim()) return;
 
-    if (!channelToken.trim() && !notifyToken.trim()) {
+    if (!channelToken.trim() || !targetId.trim()) {
       setTestResult({
         type: "error",
-        msg: `กรุณาตั้งค่า Line Access Token สำหรับห้อง ${selectedClass} ก่อนส่งข้อความ`,
+        msg: `กรุณากรอก Line Access Token และ Line Group ID สำหรับห้อง ${selectedClass} ให้ครบถ้วนก่อนส่งข้อความ`,
       });
       return;
     }
@@ -240,7 +236,6 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
         body: JSON.stringify({
           channelAccessToken: channelToken.trim(),
           targetId: targetId.trim(),
-          notifyToken: notifyToken.trim(),
           message: messageText,
         }),
       });
@@ -765,39 +760,26 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-zinc-400 font-medium block mb-1">
-                  Line Channel Access Token (Messaging API):
+                  Line Channel Access Token:
                 </label>
                 <input
                   type="password"
                   value={channelToken}
                   onChange={(e) => setChannelToken(e.target.value)}
-                  placeholder="Bearer Token จาก LINE Developers"
+                  placeholder="Channel Access Token จาก LINE Developers"
                   className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
               <div>
                 <label className="text-xs text-zinc-400 font-medium block mb-1">
-                  Line Target User/Group ID:
+                  Line Group ID / Target ID:
                 </label>
                 <input
                   type="text"
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
                   placeholder="เช่น C1234567890abcdef..."
-                  className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="pt-2 border-t border-white/5">
-                <label className="text-xs text-zinc-400 font-medium block mb-1">
-                  หรือ Line Notify Token (ทางเลือกรอง):
-                </label>
-                <input
-                  type="password"
-                  value={notifyToken}
-                  onChange={(e) => setNotifyToken(e.target.value)}
-                  placeholder="Token จาก notify-bot.line.me"
                   className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>

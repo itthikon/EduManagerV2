@@ -124,9 +124,8 @@ export interface LineConfig {
   id: string;
   teacherId: string;
   classRoom: string;
-  channelAccessToken?: string; // Line Messaging API Channel Access Token
-  targetUserId?: string;       // Line User ID or Group ID for Push Message
-  notifyToken?: string;        // Line Notify Token (Alternative)
+  channelAccessToken: string; // Line Access Token
+  targetUserId: string;       // Line Group ID
   updatedAt: string;
 }
 

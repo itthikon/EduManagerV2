@@ -835,16 +835,21 @@ export default function App() {
   const handleSaveLineConfig = async (
     data: Omit<LineConfig, "id" | "updatedAt">
   ) => {
-    const cfgId = `line_${data.classRoom.replace(/\//g, "-")}`;
+    const cleanClass = data.classRoom ? data.classRoom.trim() : "default";
+    const cleanClassId = cleanClass.replace(/[^a-zA-Z0-9ก-๙_-]/g, "-").replace(/--+/g, "-");
+    const cfgId = `line_${cleanClassId || "default"}`;
+
     const newDoc: LineConfig = {
-      ...data,
       id: cfgId,
       teacherId: user?.uid || "demo",
+      classRoom: cleanClass,
+      channelAccessToken: data.channelAccessToken ? data.channelAccessToken.trim() : "",
+      targetUserId: data.targetUserId ? data.targetUserId.trim() : "",
       updatedAt: new Date().toISOString(),
     };
 
     setLineConfigs((prev) => {
-      const idx = prev.findIndex((c) => c.classRoom === data.classRoom);
+      const idx = prev.findIndex((c) => c.classRoom === cleanClass);
       if (idx >= 0) {
         const copy = [...prev];
         copy[idx] = newDoc;
@@ -855,8 +860,9 @@ export default function App() {
 
     try {
       await setDoc(doc(db, "lineConfigs", cfgId), newDoc);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Firestore line config error:", e);
+      throw new Error(e.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูลไปยังระบบ");
     }
   };
 
@@ -911,8 +917,8 @@ export default function App() {
 
   const handleExecuteScheduledNotification = async (sch: ScheduledNotification) => {
     const config = lineConfigs.find((c) => c.classRoom === sch.classRoom);
-    if (!config || (!config.channelAccessToken && !config.notifyToken)) {
-      return { success: false, error: `ยังไม่ได้ตั้งค่า Token สำหรับห้อง ${sch.classRoom}` };
+    if (!config || !config.channelAccessToken || !config.targetUserId) {
+      return { success: false, error: `ยังไม่ได้ตั้งค่า Line Access Token และ Group ID สำหรับห้อง ${sch.classRoom}` };
     }
 
     const msg = buildNotificationMessage({
@@ -937,7 +943,6 @@ export default function App() {
         body: JSON.stringify({
           channelAccessToken: config.channelAccessToken,
           targetId: config.targetUserId,
-          notifyToken: config.notifyToken,
           message: msg,
         }),
       });
