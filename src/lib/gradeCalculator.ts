@@ -18,8 +18,11 @@ export function calculateStudentGradeSummary(
   scoreWeights: ScoreWeights
 ): StudentGradeSummary {
   // Filter assignments for this student's classroom
-  const relevantAssignments = assignments.filter((a) =>
-    a.assignedClasses && a.assignedClasses.includes(student.classRoom)
+  const relevantAssignments = assignments.filter(
+    (a) =>
+      !a.assignedClasses ||
+      a.assignedClasses.length === 0 ||
+      (student.classRoom && a.assignedClasses.includes(student.classRoom))
   );
 
   let preMidtermScore = 0;

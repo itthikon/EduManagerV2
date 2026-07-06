@@ -105,6 +105,17 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
       (!selectedClass || !a.assignedClasses || a.assignedClasses.length === 0 || a.assignedClasses.includes(selectedClass))
   );
 
+  // Helper to get assignments relevant to a specific student and subject (filtered by student class)
+  const getSubjectTasksForStudent = (subjectId: string, student?: Student | null) => {
+    const cls = student?.classRoom || selectedClass;
+    return assignments.filter((a) => {
+      if (a.subjectId !== subjectId) return false;
+      if (!cls) return true;
+      if (!a.assignedClasses || a.assignedClasses.length === 0) return true;
+      return a.assignedClasses.includes(cls);
+    });
+  };
+
   // Sync default active assignment
   useEffect(() => {
     if (availableAssignments.length > 0) {
@@ -228,8 +239,8 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
     const targetSubId = subjectId || selectedSubjectId || subjects[0]?.id || "";
     setActiveStudentSubjectId(targetSubId);
 
-    // Initialize task scores state for ALL assignments in the selected subject
-    const subjectTasks = assignments.filter((a) => a.subjectId === targetSubId);
+    // Initialize task scores state for ALL assignments in the selected subject (filtered by student classroom)
+    const subjectTasks = getSubjectTasksForStudent(targetSubId, student);
     const initialScores: Record<string, { score: number; note: string; isModified?: boolean }> = {};
 
     subjectTasks.forEach((task) => {
@@ -259,7 +270,7 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
     if (!activeStudent) return;
     setActiveStudentSubjectId(newSubId);
 
-    const subjectTasks = assignments.filter((a) => a.subjectId === newSubId);
+    const subjectTasks = getSubjectTasksForStudent(newSubId, activeStudent);
     const updatedScores: Record<string, { score: number; note: string; isModified?: boolean }> = {};
 
     subjectTasks.forEach((task) => {
@@ -298,7 +309,7 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
 
   // Quick action: Give full score to all tasks in modal
   const handleGiveFullScoreAllTasks = () => {
-    const subjectTasks = assignments.filter((a) => a.subjectId === activeStudentSubjectId);
+    const subjectTasks = getSubjectTasksForStudent(activeStudentSubjectId, activeStudent);
     setStudentTaskScores((prev) => {
       const next = { ...prev };
       subjectTasks.forEach((task) => {
@@ -314,7 +325,7 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
 
   // Quick action: Clear scores all tasks
   const handleClearAllTasks = () => {
-    const subjectTasks = assignments.filter((a) => a.subjectId === activeStudentSubjectId);
+    const subjectTasks = getSubjectTasksForStudent(activeStudentSubjectId, activeStudent);
     setStudentTaskScores((prev) => {
       const next = { ...prev };
       subjectTasks.forEach((task) => {
@@ -334,7 +345,7 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
 
     setSaving(true);
     try {
-      const subjectTasks = assignments.filter((a) => a.subjectId === activeStudentSubjectId);
+      const subjectTasks = getSubjectTasksForStudent(activeStudentSubjectId, activeStudent);
 
       for (const task of subjectTasks) {
         const item = studentTaskScores[task.id];
@@ -718,8 +729,8 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
               </div>
             ) : (
               filteredStudents.map((st) => {
-                // Calculate student overall submissions in selected subject
-                const subjectTasks = assignments.filter((a) => a.subjectId === selectedSubjectId);
+                // Calculate student overall submissions in selected subject for student classroom
+                const subjectTasks = getSubjectTasksForStudent(selectedSubjectId, st);
                 const gradedCount = subjectTasks.filter((task) => {
                   const sub = submissions.find(
                     (s) => s.assignmentId === task.id && s.studentId === st.studentId
@@ -977,7 +988,7 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
 
             {/* Subject Task Progress & Fast Batch Presets */}
             {(() => {
-              const subjectTasks = assignments.filter((a) => a.subjectId === activeStudentSubjectId);
+              const subjectTasks = getSubjectTasksForStudent(activeStudentSubjectId, activeStudent);
               const maxTotal = subjectTasks.reduce((acc, t) => acc + t.maxScore, 0);
               const currentEarned = subjectTasks.reduce((acc, t) => {
                 const item = studentTaskScores[t.id];
@@ -1028,7 +1039,7 @@ export const GradingScanner: React.FC<GradingScannerProps> = ({
             {/* Assignments Scrollable List for this Selected Student */}
             <div className="overflow-y-auto space-y-3 pr-1 flex-1 min-h-[220px]">
               {(() => {
-                const subjectTasks = assignments.filter((a) => a.subjectId === activeStudentSubjectId);
+                const subjectTasks = getSubjectTasksForStudent(activeStudentSubjectId, activeStudent);
 
                 if (subjectTasks.length === 0) {
                   return (

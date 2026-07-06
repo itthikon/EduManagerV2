@@ -70,7 +70,9 @@ export const AssignmentManager: React.FC<AssignmentManagerProps> = ({
     const matchesSubject = !selectedSubjectId || a.subjectId === selectedSubjectId;
     const matchesClass =
       selectedClassFilter === "ALL" ||
-      (a.assignedClasses && a.assignedClasses.includes(selectedClassFilter));
+      !a.assignedClasses ||
+      a.assignedClasses.length === 0 ||
+      a.assignedClasses.includes(selectedClassFilter);
     return matchesSubject && matchesClass;
   });
 
