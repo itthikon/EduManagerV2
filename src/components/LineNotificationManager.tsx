@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Assignment, LineConfig, ScheduledNotification, Student, Subject, Submission } from "../types";
 import { buildNotificationMessage } from "../lib/notificationBuilder";
+import { sendLineNotification } from "../lib/lineApi";
 
 interface LineNotificationManagerProps {
   subjects: Subject[];
@@ -230,18 +231,13 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
     setTestResult(null);
 
     try {
-      const response = await fetch("/api/line-notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          channelAccessToken: channelToken.trim(),
-          targetId: targetId.trim(),
-          message: messageText,
-        }),
+      const res = await sendLineNotification({
+        channelAccessToken: channelToken.trim(),
+        targetId: targetId.trim(),
+        message: messageText,
       });
 
-      const resData = await response.json();
-      if (response.ok && resData.success) {
+      if (res.success) {
         setTestResult({
           type: "success",
           msg: `ส่งการแจ้งเตือนไปยังกลุ่ม LINE ห้อง ${selectedClass} สำเร็จ!`,
@@ -249,7 +245,7 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
       } else {
         setTestResult({
           type: "error",
-          msg: resData.error || "เกิดข้อผิดพลาดจาก LINE API Server",
+          msg: res.error || "เกิดข้อผิดพลาดในการส่ง LINE Notification",
         });
       }
     } catch (err: any) {

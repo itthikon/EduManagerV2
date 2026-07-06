@@ -30,6 +30,7 @@ import {
   cleanTerm,
 } from "./types";
 import { buildNotificationMessage } from "./lib/notificationBuilder";
+import { sendLineNotification } from "./lib/lineApi";
 import { Navbar } from "./components/Navbar";
 import { DashboardOverview } from "./components/DashboardOverview";
 import { SubjectManager } from "./components/SubjectManager";
@@ -937,18 +938,13 @@ export default function App() {
     }
 
     try {
-      const res = await fetch("/api/line-notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          channelAccessToken: config.channelAccessToken,
-          targetId: config.targetUserId,
-          message: msg,
-        }),
+      const res = await sendLineNotification({
+        channelAccessToken: config.channelAccessToken,
+        targetId: config.targetUserId,
+        message: msg,
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.success) {
         const nowIso = new Date().toISOString();
         setScheduledNotifications((prev) =>
           prev.map((s) => (s.id === sch.id ? { ...s, lastExecutedAt: nowIso } : s))
@@ -962,7 +958,7 @@ export default function App() {
         }
         return { success: true };
       } else {
-        return { success: false, error: data.error || "เกิดข้อผิดพลาดจาก LINE API" };
+        return { success: false, error: res.error || "เกิดข้อผิดพลาดจาก LINE API" };
       }
     } catch (err: any) {
       return { success: false, error: err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ" };
