@@ -184,7 +184,7 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
 
   // Save LINE config for selected class
   const handleSaveConfig = async () => {
-    const cleanTargetId = targetId.trim().toLowerCase();
+    const cleanTargetId = targetId.trim();
     if (!channelToken.trim() || !cleanTargetId) {
       setTestResult({
         type: "error",
@@ -220,7 +220,7 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
   const handleSendDirectNotification = async () => {
     if (!messageText.trim()) return;
 
-    const cleanTargetId = targetId.trim().toLowerCase();
+    const cleanTargetId = targetId.trim();
     if (!channelToken.trim() || !cleanTargetId) {
       setTestResult({
         type: "error",
@@ -776,8 +776,8 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
                 <input
                   type="text"
                   value={targetId}
-                  onChange={(e) => setTargetId(e.target.value.toLowerCase().trim())}
-                  placeholder="เช่น c1234567890abcdef..."
+                  onChange={(e) => setTargetId(e.target.value.trim())}
+                  placeholder="เช่น C1234567890abcdef..."
                   className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>

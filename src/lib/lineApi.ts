@@ -9,7 +9,7 @@ export async function sendLineNotification(
   payload: SendLinePayload
 ): Promise<{ success: boolean; error?: string; result?: any }> {
   const token = payload.channelAccessToken ? payload.channelAccessToken.trim() : "";
-  const target = payload.targetId ? payload.targetId.trim().toLowerCase() : "";
+  const target = payload.targetId ? payload.targetId.trim() : "";
 
   if (!token || !target) {
     return {
@@ -57,7 +57,7 @@ async function sendDirectLinePush(
   payload: SendLinePayload
 ): Promise<{ success: boolean; error?: string; result?: any }> {
   const token = payload.channelAccessToken ? payload.channelAccessToken.trim() : "";
-  const target = payload.targetId ? payload.targetId.trim().toLowerCase() : "";
+  const target = payload.targetId ? payload.targetId.trim() : "";
 
   try {
     const directRes = await fetch("https://api.line.me/v2/bot/message/push", {
