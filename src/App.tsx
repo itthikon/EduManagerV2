@@ -845,7 +845,7 @@ export default function App() {
       teacherId: user?.uid || "demo",
       classRoom: cleanClass,
       channelAccessToken: data.channelAccessToken ? data.channelAccessToken.trim() : "",
-      targetUserId: data.targetUserId ? data.targetUserId.trim() : "",
+      targetUserId: data.targetUserId ? data.targetUserId.trim().toLowerCase() : "",
       updatedAt: new Date().toISOString(),
     };
 

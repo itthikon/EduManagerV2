@@ -24,7 +24,7 @@ async function startServer() {
       }
 
       const cleanToken = channelAccessToken ? String(channelAccessToken).trim() : "";
-      const cleanTarget = targetId ? String(targetId).trim() : "";
+      const cleanTarget = targetId ? String(targetId).trim().toLowerCase() : "";
 
       if (!cleanToken || !cleanTarget) {
         return res.status(400).json({

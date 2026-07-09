@@ -184,7 +184,8 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
 
   // Save LINE config for selected class
   const handleSaveConfig = async () => {
-    if (!channelToken.trim() || !targetId.trim()) {
+    const cleanTargetId = targetId.trim().toLowerCase();
+    if (!channelToken.trim() || !cleanTargetId) {
       setTestResult({
         type: "error",
         msg: "กรุณากรอก Line Access Token และ Line Group ID ให้ครบถ้วนก่อนบันทึก",
@@ -199,7 +200,7 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
       await onSaveLineConfig({
         classRoom: selectedClass,
         channelAccessToken: channelToken.trim(),
-        targetUserId: targetId.trim(),
+        targetUserId: cleanTargetId,
       });
       setTestResult({
         type: "success",
@@ -219,7 +220,8 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
   const handleSendDirectNotification = async () => {
     if (!messageText.trim()) return;
 
-    if (!channelToken.trim() || !targetId.trim()) {
+    const cleanTargetId = targetId.trim().toLowerCase();
+    if (!channelToken.trim() || !cleanTargetId) {
       setTestResult({
         type: "error",
         msg: `กรุณากรอก Line Access Token และ Line Group ID สำหรับห้อง ${selectedClass} ให้ครบถ้วนก่อนส่งข้อความ`,
@@ -233,7 +235,7 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
     try {
       const res = await sendLineNotification({
         channelAccessToken: channelToken.trim(),
-        targetId: targetId.trim(),
+        targetId: cleanTargetId,
         message: messageText,
       });
 
@@ -774,8 +776,8 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
                 <input
                   type="text"
                   value={targetId}
-                  onChange={(e) => setTargetId(e.target.value)}
-                  placeholder="เช่น C1234567890abcdef..."
+                  onChange={(e) => setTargetId(e.target.value.toLowerCase().trim())}
+                  placeholder="เช่น c1234567890abcdef..."
                   className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
