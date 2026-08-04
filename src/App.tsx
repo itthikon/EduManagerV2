@@ -39,6 +39,7 @@ import { AssignmentManager } from "./components/AssignmentManager";
 import { GradingScanner } from "./components/GradingScanner";
 import { LineNotificationManager } from "./components/LineNotificationManager";
 import { AcademicYearManagerModal } from "./components/AcademicYearManagerModal";
+import { BackupRestoreModal, BackupPayloadData } from "./components/BackupRestoreModal";
 import { AdminUserManagement } from "./components/AdminUserManagement";
 import { AccessDeniedScreen } from "./components/AccessDeniedScreen";
 import { LoginScreen } from "./components/LoginScreen";
@@ -157,6 +158,7 @@ export default function App() {
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("2568");
   const [academicYears, setAcademicYears] = useState<string[]>(["2568", "2567"]);
   const [isYearManagerOpen, setIsYearManagerOpen] = useState(false);
+  const [isBackupRestoreOpen, setIsBackupRestoreOpen] = useState(false);
   const hasSeededYearsRef = useRef(false);
 
   // Auth User & System Security State
@@ -927,6 +929,7 @@ export default function App() {
       subjectId: sch.subjectId,
       classRoom: sch.classRoom,
       assignmentId: sch.assignmentId,
+      passThresholdPct: sch.passThresholdPct,
       subjects,
       students,
       assignments,
@@ -1031,6 +1034,74 @@ export default function App() {
     return <AccessDeniedScreen user={user} onRequestAccess={handleRequestAccess} />;
   }
 
+  // Handle Database Backup & Restore (.db)
+  const handleRestoreData = async (
+    data: BackupPayloadData,
+    mode: "overwrite" | "merge"
+  ): Promise<{ success: boolean; message: string }> => {
+    try {
+      const operations: { ref: any; data: any; merge?: boolean }[] = [];
+
+      const processCollection = (colName: string, items?: any[]) => {
+        if (!items || !Array.isArray(items)) return;
+        for (const item of items) {
+          if (!item.id) continue;
+          const ref = doc(db, colName, item.id);
+          operations.push({
+            ref,
+            data: item,
+            merge: mode === "merge",
+          });
+        }
+      };
+
+      processCollection("subjects", data.subjects);
+      processCollection("students", data.students);
+      processCollection("assignments", data.assignments);
+      processCollection("submissions", data.submissions);
+      processCollection("lineConfigs", data.lineConfigs);
+      processCollection("scheduledNotifications", data.scheduledNotifications);
+
+      if (data.academicYears && Array.isArray(data.academicYears)) {
+        for (const yr of data.academicYears) {
+          if (!yr) continue;
+          const cYr = yr.toString().trim();
+          const ref = doc(db, "academicYears", `yr_${cYr}`);
+          operations.push({
+            ref,
+            data: { id: `yr_${cYr}`, year: cYr, createdAt: new Date().toISOString() },
+            merge: true,
+          });
+        }
+      }
+
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < operations.length; i += CHUNK_SIZE) {
+        const chunk = operations.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        for (const op of chunk) {
+          if (op.merge) {
+            batch.set(op.ref, op.data, { merge: true });
+          } else {
+            batch.set(op.ref, op.data);
+          }
+        }
+        await batch.commit();
+      }
+
+      return {
+        success: true,
+        message: `นำข้อมูลกลับสู่ระบบสำเร็จ (${operations.length} รายการได้รับการบันทึกไปยัง Firestore เรียบร้อยแล้ว)`,
+      };
+    } catch (err: any) {
+      console.error("Restore Error:", err);
+      return {
+        success: false,
+        message: `เกิดข้อผิดพลาดในการนำข้อมูลกลับสู่ระบบ: ${err.message || "ไม่สามารถเชื่อมต่อฐานข้อมูลได้"}`,
+      };
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#111113] text-white flex flex-col font-['Geist']">
       <Navbar
@@ -1044,6 +1115,7 @@ export default function App() {
         setSelectedAcademicYear={setSelectedAcademicYear}
         academicYears={combinedAcademicYears}
         onOpenYearManager={() => setIsYearManagerOpen(true)}
+        onOpenBackupRestore={() => setIsBackupRestoreOpen(true)}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -1143,6 +1215,21 @@ export default function App() {
         students={students}
         assignments={assignments}
         submissions={submissions}
+      />
+
+      <BackupRestoreModal
+        isOpen={isBackupRestoreOpen}
+        onClose={() => setIsBackupRestoreOpen(false)}
+        subjects={subjects}
+        students={students}
+        assignments={assignments}
+        submissions={submissions}
+        lineConfigs={lineConfigs}
+        scheduledNotifications={scheduledNotifications}
+        academicYears={combinedAcademicYears}
+        selectedTerm={selectedTerm}
+        selectedAcademicYear={selectedAcademicYear}
+        onRestoreData={handleRestoreData}
       />
 
       <footer className="bg-[#18181B] border-t border-white/10 py-6 text-center text-xs text-white/40 font-['Geist_Mono']">

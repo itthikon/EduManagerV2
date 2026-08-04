@@ -135,8 +135,9 @@ export interface ScheduledNotification {
   title: string;                 // ชื่อรายการตั้งเวลา
   classRoom: string;            // ห้องเรียน e.g. "ม.1/1"
   subjectId: string;            // ID วิชา หรือ "ALL" (ทุกวิชา)
-  reportType: "missing_subject" | "missing_task" | "completed" | "grades"; // ประเภทรายงาน
+  reportType: "missing_subject" | "missing_task" | "completed" | "grades" | "midterm_exam" | "final_exam"; // ประเภทรายงาน
   assignmentId?: string;        // กรณีเลือกภาระงานเดี่ยว
+  passThresholdPct?: number;    // เกณฑ์เปอร์เซ็นต์สอบผ่าน e.g. 50, 60, 70
   scheduleType: "specific" | "recurring"; // ชนิดการตั้งเวลา: ระบุวันเวลา หรือ ประจำสัปดาห์
   scheduledDate?: string;       // e.g. "2026-07-10"
   scheduledTime: string;        // e.g. "09:00", "16:30"

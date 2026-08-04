@@ -18,6 +18,7 @@ import {
   Globe,
   Crown,
   ShieldCheck,
+  Database,
 } from "lucide-react";
 import { loginWithGoogle, logoutUser, getAuthErrorMessage, SUPER_ADMIN_UID } from "../lib/firebase";
 import { UserProfile, cleanYear } from "../types";
@@ -33,6 +34,7 @@ interface NavbarProps {
   setSelectedAcademicYear: (year: string) => void;
   academicYears: string[];
   onOpenYearManager: () => void;
+  onOpenBackupRestore: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -46,6 +48,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setSelectedAcademicYear,
   academicYears,
   onOpenYearManager,
+  onOpenBackupRestore,
 }) => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [authError, setAuthError] = useState<{
@@ -164,6 +167,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Settings2 className="w-3.5 h-3.5" />
                 <span className="hidden lg:inline text-[10px]">จัดการ/ลบ</span>
+              </button>
+
+              <button
+                onClick={onOpenBackupRestore}
+                title="สำรอง / กู้คืนข้อมูลระบบ (.db)"
+                className="p-1.5 bg-[#00FF66]/10 hover:bg-[#00FF66]/20 border border-[#00FF66]/30 text-[#00FF66] rounded transition-colors text-xs flex items-center space-x-1 font-bold"
+              >
+                <Database className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-[10px]">สำรอง/กู้คืน .db</span>
               </button>
             </div>
 

@@ -2,10 +2,11 @@ import { Assignment, Student, Subject, Submission } from "../types";
 import { calculateStudentGradeSummary } from "./gradeCalculator";
 
 export interface BuildMessageParams {
-  reportType: "missing_subject" | "missing_task" | "completed" | "grades";
+  reportType: "missing_subject" | "missing_task" | "completed" | "grades" | "midterm_exam" | "final_exam";
   subjectId: string;
   classRoom: string;
   assignmentId?: string;
+  passThresholdPct?: number;
   subjects: Subject[];
   students: Student[];
   assignments: Assignment[];
@@ -17,6 +18,7 @@ export function buildNotificationMessage({
   subjectId,
   classRoom,
   assignmentId,
+  passThresholdPct = 50,
   subjects,
   students,
   assignments,
@@ -209,6 +211,156 @@ export function buildNotificationMessage({
       msg += `   • คะแนนรวม: ${summary.totalPercentage}% | เกรด: ${summary.grade}\n`;
       msg += `   • ส่งงานแล้ว: ${summary.submittedCount}/${summary.totalAssignments} ชิ้น | ค้างส่ง: ${summary.missingCount} ชิ้น\n\n`;
     });
+
+    return msg.trim();
+  }
+
+  // Case 5: Midterm Exam Scores Notification (แจ้งคะแนนสอบกลางภาค)
+  if (reportType === "midterm_exam") {
+    if (!selectedSubject) return "กรุณาเลือกวิชาที่ต้องการตรวจสอบ";
+    const roomStudents = students
+      .filter((s) => classRoom === "ALL" || s.classRoom === classRoom)
+      .sort((a, b) => a.number - b.number);
+
+    const midtermAssignments = assignments.filter(
+      (a) =>
+        a.subjectId === selectedSubject.id &&
+        (a.category === "midterm" ||
+          a.title.toLowerCase().includes("กลางภาค") ||
+          a.title.toLowerCase().includes("midterm"))
+    );
+
+    let msg = `📝 [แจ้งผลคะแนนสอบกลางภาค] วิชา ${selectedSubject.code} ${selectedSubject.name}\n`;
+    if (classRoom !== "ALL") msg += `🏫 ห้องเรียน: ${classRoom}\n`;
+    msg += `--------------------------------\n`;
+
+    if (midtermAssignments.length === 0) {
+      msg += `ยังไม่มีการสร้างรายการคะแนนสอบกลางภาคในวิชานี้ครับ/ค่ะ`;
+      return msg;
+    }
+
+    const totalMidtermMax = midtermAssignments.reduce((acc, a) => acc + a.maxScore, 0);
+    const passPct = passThresholdPct ?? 50;
+    const passScoreNeeded = totalMidtermMax > 0 ? (totalMidtermMax * passPct) / 100 : 0;
+    msg += `📌 คะแนนสอบกลางภาคเต็ม: ${totalMidtermMax} คะแนน (เกณฑ์ผ่าน ${passPct}% / ${passScoreNeeded} คะแนน)\n`;
+    msg += `--------------------------------\n`;
+
+    let totalScoreSum = 0;
+    let gradedCount = 0;
+    let passCount = 0;
+
+    roomStudents.forEach((st) => {
+      let studentMidtermScore = 0;
+      let hasGraded = false;
+
+      midtermAssignments.forEach((a) => {
+        const sub = submissions.find(
+          (s) => s.assignmentId === a.id && s.studentId === st.studentId
+        );
+        if (sub && (sub.status === "graded" || sub.status === "submitted")) {
+          studentMidtermScore += sub.score || 0;
+          hasGraded = true;
+        }
+      });
+
+      if (hasGraded) {
+        gradedCount++;
+        totalScoreSum += studentMidtermScore;
+        const pct = totalMidtermMax > 0 ? (studentMidtermScore / totalMidtermMax) * 100 : 0;
+        const isPass = pct >= passPct;
+        if (isPass) passCount++;
+
+        msg += `[เลขที่ ${st.number}] ${st.prefix || ""}${st.firstName} ${st.lastName}\n`;
+        msg += `   • คะแนนสอบกลางภาค: ${studentMidtermScore} / ${totalMidtermMax} คะแนน (${Math.round(pct)}%) ${isPass ? "✅ ผ่าน" : "⚠️ ไม่ผ่าน"}\n\n`;
+      } else {
+        msg += `[เลขที่ ${st.number}] ${st.prefix || ""}${st.firstName} ${st.lastName}\n`;
+        msg += `   • คะแนนสอบกลางภาค: ยังไม่มีผลสอบ/ยังไม่ได้ตรวจ\n\n`;
+      }
+    });
+
+    const avgScore = gradedCount > 0 ? (totalScoreSum / gradedCount).toFixed(1) : "0";
+    msg += `--------------------------------\n`;
+    msg += `📊 สรุปภาพรวม: ตรวจแล้ว ${gradedCount}/${roomStudents.length} คน | ผ่านเกณฑ์ (${passPct}%) ${passCount} คน | คะแนนเฉลี่ย ${avgScore} คะแนน`;
+
+    return msg.trim();
+  }
+
+  // Case 6: Final Exam Scores Notification (แจ้งคะแนนสอบปลายภาค)
+  if (reportType === "final_exam") {
+    if (!selectedSubject) return "กรุณาเลือกวิชาที่ต้องการตรวจสอบ";
+    const roomStudents = students
+      .filter((s) => classRoom === "ALL" || s.classRoom === classRoom)
+      .sort((a, b) => a.number - b.number);
+
+    const finalAssignments = assignments.filter(
+      (a) =>
+        a.subjectId === selectedSubject.id &&
+        (a.category === "final" ||
+          a.title.toLowerCase().includes("ปลายภาค") ||
+          a.title.toLowerCase().includes("final"))
+    );
+
+    let msg = `🏁 [แจ้งผลคะแนนสอบปลายภาค] วิชา ${selectedSubject.code} ${selectedSubject.name}\n`;
+    if (classRoom !== "ALL") msg += `🏫 ห้องเรียน: ${classRoom}\n`;
+    msg += `--------------------------------\n`;
+
+    if (finalAssignments.length === 0) {
+      msg += `ยังไม่มีการสร้างรายการคะแนนสอบปลายภาคในวิชานี้ครับ/ค่ะ`;
+      return msg;
+    }
+
+    const totalFinalMax = finalAssignments.reduce((acc, a) => acc + a.maxScore, 0);
+    const passPct = passThresholdPct ?? 50;
+    const passScoreNeeded = totalFinalMax > 0 ? (totalFinalMax * passPct) / 100 : 0;
+    msg += `📌 คะแนนสอบปลายภาคเต็ม: ${totalFinalMax} คะแนน (เกณฑ์ผ่าน ${passPct}% / ${passScoreNeeded} คะแนน)\n`;
+    msg += `--------------------------------\n`;
+
+    let totalScoreSum = 0;
+    let gradedCount = 0;
+    let passCount = 0;
+
+    const subjectAssignments = assignments.filter((a) => a.subjectId === selectedSubject.id);
+
+    roomStudents.forEach((st) => {
+      let studentFinalScore = 0;
+      let hasGraded = false;
+
+      finalAssignments.forEach((a) => {
+        const sub = submissions.find(
+          (s) => s.assignmentId === a.id && s.studentId === st.studentId
+        );
+        if (sub && (sub.status === "graded" || sub.status === "submitted")) {
+          studentFinalScore += sub.score || 0;
+          hasGraded = true;
+        }
+      });
+
+      const summary = calculateStudentGradeSummary(
+        st,
+        subjectAssignments,
+        submissions,
+        selectedSubject.scoreWeights
+      );
+
+      if (hasGraded) {
+        gradedCount++;
+        totalScoreSum += studentFinalScore;
+        const pct = totalFinalMax > 0 ? (studentFinalScore / totalFinalMax) * 100 : 0;
+        const isPass = pct >= passPct;
+        if (isPass) passCount++;
+
+        msg += `[เลขที่ ${st.number}] ${st.prefix || ""}${st.firstName} ${st.lastName}\n`;
+        msg += `   • คะแนนสอบปลายภาค: ${studentFinalScore} / ${totalFinalMax} คะแนน (${Math.round(pct)}%) ${isPass ? "✅ ผ่าน" : "⚠️ ไม่ผ่าน"}\n`;
+        msg += `   • คะแนนสะสมรวม: ${summary.totalPercentage}% | เกรดสุทธิ: ${summary.grade}\n\n`;
+      } else {
+        msg += `[เลขที่ ${st.number}] ${st.prefix || ""}${st.firstName} ${st.lastName}\n`;
+        msg += `   • คะแนนสอบปลายภาค: ยังไม่มีผลสอบ/ยังไม่ได้ตรวจ\n\n`;
+      }
+    });
+
+    const avgScore = gradedCount > 0 ? (totalScoreSum / gradedCount).toFixed(1) : "0";
+    msg += `--------------------------------\n`;
+    msg += `📊 สรุปภาพรวม: ตรวจแล้ว ${gradedCount}/${roomStudents.length} คน | ผ่านเกณฑ์ (${passPct}%) ${passCount} คน | คะแนนเฉลี่ย ${avgScore} คะแนน`;
 
     return msg.trim();
   }

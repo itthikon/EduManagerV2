@@ -70,9 +70,10 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
-  const [activeNotifyTab, setActiveNotifyTab] = useState<"missing" | "completed" | "grades" | "schedule">("missing");
+  const [activeNotifyTab, setActiveNotifyTab] = useState<"missing" | "completed" | "grades" | "midterm_exam" | "final_exam" | "schedule">("missing");
   const [missingMode, setMissingMode] = useState<"subject_all" | "single_task">("subject_all");
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("");
+  const [passThresholdPct, setPassThresholdPct] = useState<number>(50);
 
   const [messageText, setMessageText] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -82,8 +83,9 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
   const [schTitle, setSchTitle] = useState("");
   const [schClassRoom, setSchClassRoom] = useState("ม.1/1");
   const [schSubjectId, setSchSubjectId] = useState(subjects[0]?.id || "ALL");
-  const [schReportType, setSchReportType] = useState<"missing_subject" | "missing_task" | "completed" | "grades">("missing_subject");
+  const [schReportType, setSchReportType] = useState<"missing_subject" | "missing_task" | "completed" | "grades" | "midterm_exam" | "final_exam">("missing_subject");
   const [schAssignmentId, setSchAssignmentId] = useState("");
+  const [schPassThresholdPct, setSchPassThresholdPct] = useState<number>(50);
   const [schScheduleType, setSchScheduleType] = useState<"specific" | "recurring">("recurring");
   const [schDate, setSchDate] = useState(new Date().toISOString().split("T")[0]);
   const [schTime, setSchTime] = useState("16:30");
@@ -134,7 +136,7 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
 
   // Auto-generate notification message
   const generateMessage = React.useCallback(() => {
-    let repType: "missing_subject" | "missing_task" | "completed" | "grades" = "missing_subject";
+    let repType: "missing_subject" | "missing_task" | "completed" | "grades" | "midterm_exam" | "final_exam" = "missing_subject";
 
     if (activeNotifyTab === "missing") {
       repType = missingMode === "subject_all" ? "missing_subject" : "missing_task";
@@ -142,6 +144,10 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
       repType = "completed";
     } else if (activeNotifyTab === "grades") {
       repType = "grades";
+    } else if (activeNotifyTab === "midterm_exam") {
+      repType = "midterm_exam";
+    } else if (activeNotifyTab === "final_exam") {
+      repType = "final_exam";
     } else {
       return "";
     }
@@ -151,12 +157,13 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
       subjectId: selectedSubjectId,
       classRoom: selectedClass,
       assignmentId: selectedAssignmentId,
+      passThresholdPct,
       subjects,
       students,
       assignments,
       submissions,
     });
-  }, [activeNotifyTab, missingMode, selectedSubjectId, selectedClass, selectedAssignmentId, subjects, students, assignments, submissions]);
+  }, [activeNotifyTab, missingMode, selectedSubjectId, selectedClass, selectedAssignmentId, passThresholdPct, subjects, students, assignments, submissions]);
 
   // Update preview message when selection changes
   React.useEffect(() => {
@@ -272,6 +279,7 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
         subjectId: schSubjectId,
         reportType: schReportType,
         assignmentId: schAssignmentId,
+        passThresholdPct: schPassThresholdPct,
         scheduleType: schScheduleType,
         scheduledDate: schDate,
         scheduledTime: schTime,
@@ -345,7 +353,7 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
           <div className="flex border-b border-white/10 gap-2 overflow-x-auto pb-1">
             <button
               onClick={() => setActiveNotifyTab("missing")}
-              className={`px-4 py-2.5 rounded-t-xl text-sm font-semibold flex items-center gap-2 transition-all ${
+              className={`px-4 py-2.5 rounded-t-xl text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
                 activeNotifyTab === "missing"
                   ? "bg-amber-500/10 border-t-2 border-amber-500 text-amber-400"
                   : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -355,7 +363,7 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
             </button>
             <button
               onClick={() => setActiveNotifyTab("completed")}
-              className={`px-4 py-2.5 rounded-t-xl text-sm font-semibold flex items-center gap-2 transition-all ${
+              className={`px-4 py-2.5 rounded-t-xl text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
                 activeNotifyTab === "completed"
                   ? "bg-emerald-500/10 border-t-2 border-emerald-500 text-emerald-400"
                   : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -365,7 +373,7 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
             </button>
             <button
               onClick={() => setActiveNotifyTab("grades")}
-              className={`px-4 py-2.5 rounded-t-xl text-sm font-semibold flex items-center gap-2 transition-all ${
+              className={`px-4 py-2.5 rounded-t-xl text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
                 activeNotifyTab === "grades"
                   ? "bg-indigo-500/10 border-t-2 border-indigo-500 text-indigo-400"
                   : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -374,8 +382,28 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
               <Award className="w-4 h-4" /> สรุปคะแนน & เกรด
             </button>
             <button
+              onClick={() => setActiveNotifyTab("midterm_exam")}
+              className={`px-4 py-2.5 rounded-t-xl text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
+                activeNotifyTab === "midterm_exam"
+                  ? "bg-purple-500/10 border-t-2 border-purple-500 text-purple-400"
+                  : "text-zinc-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <FileText className="w-4 h-4" /> คะแนนสอบกลางภาค
+            </button>
+            <button
+              onClick={() => setActiveNotifyTab("final_exam")}
+              className={`px-4 py-2.5 rounded-t-xl text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
+                activeNotifyTab === "final_exam"
+                  ? "bg-rose-500/10 border-t-2 border-rose-500 text-rose-400"
+                  : "text-zinc-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Sparkles className="w-4 h-4" /> คะแนนสอบปลายภาค
+            </button>
+            <button
               onClick={() => setActiveNotifyTab("schedule")}
-              className={`px-4 py-2.5 rounded-t-xl text-sm font-semibold flex items-center gap-2 transition-all ${
+              className={`px-4 py-2.5 rounded-t-xl text-sm font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
                 activeNotifyTab === "schedule"
                   ? "bg-cyan-500/10 border-t-2 border-cyan-500 text-cyan-400"
                   : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -521,6 +549,136 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
             </div>
           )}
 
+          {/* TAB 4: MIDTERM EXAM SCORES REPORT */}
+          {activeNotifyTab === "midterm_exam" && (
+            <div className="bg-[#18181B] border border-white/10 rounded-xl p-5 space-y-4">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2 pb-2 border-b border-white/10">
+                <FileText className="w-4 h-4 text-purple-400" />
+                แจ้งเตือนผลคะแนนสอบกลางภาค (Midterm Exam)
+              </h3>
+
+              <div>
+                <label className="text-xs text-zinc-400 font-medium block mb-1">
+                  เลือกรายวิชา:
+                </label>
+                <select
+                  value={selectedSubjectId}
+                  onChange={(e) => setSelectedSubjectId(e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                >
+                  {subjects.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.code} {sub.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-400 font-medium block mb-1.5">
+                  กำหนดเกณฑ์เปอร์เซ็นต์ในการสอบผ่าน:
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[50, 60, 70, 80].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setPassThresholdPct(pct)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        passThresholdPct === pct
+                          ? "bg-purple-500 text-white shadow-[#000000_0px_0px_10px]"
+                          : "bg-black/50 border border-white/10 text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-1.5 bg-black/50 border border-white/10 rounded-lg px-2.5 py-1">
+                    <span className="text-xs text-zinc-400">กำหนดเอง:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={passThresholdPct}
+                      onChange={(e) => setPassThresholdPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                      className="w-12 bg-transparent text-xs text-white text-center font-bold focus:outline-none"
+                    />
+                    <span className="text-xs text-purple-400 font-bold">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-lg p-3">
+                📝 <strong>คำแนะนำ:</strong> ระบบจะดึงข้อมูลภาระงานที่เป็นหมวดหมู่ &ldquo;คะแนนกลางภาค (midterm)&rdquo; หรือมีชื่อภาระงานที่ระบุคำว่า &ldquo;กลางภาค&rdquo; / &ldquo;midterm&rdquo; มารวบรวมและคำนวณผลการสอบผ่าน/ไม่ผ่าน ตามเกณฑ์ <strong>{passThresholdPct}%</strong>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: FINAL EXAM SCORES REPORT */}
+          {activeNotifyTab === "final_exam" && (
+            <div className="bg-[#18181B] border border-white/10 rounded-xl p-5 space-y-4">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2 pb-2 border-b border-white/10">
+                <Sparkles className="w-4 h-4 text-rose-400" />
+                แจ้งเตือนผลคะแนนสอบปลายภาค (Final Exam)
+              </h3>
+
+              <div>
+                <label className="text-xs text-zinc-400 font-medium block mb-1">
+                  เลือกรายวิชา:
+                </label>
+                <select
+                  value={selectedSubjectId}
+                  onChange={(e) => setSelectedSubjectId(e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500"
+                >
+                  {subjects.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.code} {sub.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-400 font-medium block mb-1.5">
+                  กำหนดเกณฑ์เปอร์เซ็นต์ในการสอบผ่าน:
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[50, 60, 70, 80].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setPassThresholdPct(pct)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        passThresholdPct === pct
+                          ? "bg-rose-500 text-white shadow-[#000000_0px_0px_10px]"
+                          : "bg-black/50 border border-white/10 text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-1.5 bg-black/50 border border-white/10 rounded-lg px-2.5 py-1">
+                    <span className="text-xs text-zinc-400">กำหนดเอง:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={passThresholdPct}
+                      onChange={(e) => setPassThresholdPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                      className="w-12 bg-transparent text-xs text-white text-center font-bold focus:outline-none"
+                    />
+                    <span className="text-xs text-rose-400 font-bold">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-lg p-3">
+                🏁 <strong>คำแนะนำ:</strong> ระบบจะดึงข้อมูลภาระงานที่เป็นหมวดหมู่ &ldquo;คะแนนปลายภาค (final)&rdquo; หรือมีชื่อภาระงานที่ระบุคำว่า &ldquo;ปลายภาค&rdquo; / &ldquo;final&rdquo; มารวบรวมพร้อมคำนวณเกรดสุทธิประจำวิชา โดยประเมินการผ่านสอบปลายภาคที่เกณฑ์ <strong>{passThresholdPct}%</strong>
+              </div>
+            </div>
+          )}
+
           {/* TAB 4: SCHEDULED NOTIFICATIONS AUTOMATION */}
           {activeNotifyTab === "schedule" && (
             <div className="bg-[#18181B] border border-white/10 rounded-xl p-5 space-y-5">
@@ -581,7 +739,11 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
                         ? "สรุปค้างส่งงานเดี่ยว"
                         : sch.reportType === "completed"
                         ? "รายงานส่งงานครบ"
-                        : "สรุปคะแนนและเกรด";
+                        : sch.reportType === "grades"
+                        ? "สรุปคะแนนและเกรด"
+                        : sch.reportType === "midterm_exam"
+                        ? "แจ้งคะแนนสอบกลางภาค"
+                        : "แจ้งคะแนนสอบปลายภาค";
 
                     return (
                       <div
@@ -900,6 +1062,8 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
                   <option value="missing_task">สรุปงานค้างส่งเฉพาะภาระงานเดี่ยว</option>
                   <option value="completed">รายงานส่งงานครบทุกชิ้น</option>
                   <option value="grades">สรุปคะแนนสะสมและเกรด</option>
+                  <option value="midterm_exam">แจ้งคะแนนสอบกลางภาค</option>
+                  <option value="final_exam">แจ้งคะแนนสอบปลายภาค</option>
                 </select>
               </div>
 
@@ -921,6 +1085,41 @@ export const LineNotificationManager: React.FC<LineNotificationManagerProps> = (
                         </option>
                       ))}
                   </select>
+                </div>
+              )}
+
+              {(schReportType === "midterm_exam" || schReportType === "final_exam") && (
+                <div>
+                  <label className="text-xs text-zinc-400 font-medium block mb-1">
+                    เกณฑ์เปอร์เซ็นต์สอบผ่าน (%):
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {[50, 60, 70, 80].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setSchPassThresholdPct(pct)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          schPassThresholdPct === pct
+                            ? "bg-cyan-500 text-black font-extrabold"
+                            : "bg-black/50 border border-white/10 text-zinc-400 hover:text-white"
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1 bg-black/50 border border-white/10 rounded-lg px-2 py-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={schPassThresholdPct}
+                        onChange={(e) => setSchPassThresholdPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                        className="w-12 bg-transparent text-xs text-white text-center font-bold focus:outline-none"
+                      />
+                      <span className="text-xs text-cyan-400 font-bold">%</span>
+                    </div>
+                  </div>
                 </div>
               )}
 
