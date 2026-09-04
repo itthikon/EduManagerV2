@@ -38,6 +38,7 @@ import { StudentManager } from "./components/StudentManager";
 import { AssignmentManager } from "./components/AssignmentManager";
 import { GradingScanner } from "./components/GradingScanner";
 import { LineNotificationManager } from "./components/LineNotificationManager";
+import { ScoreSummaryTable } from "./components/ScoreSummaryTable";
 import { AcademicYearManagerModal } from "./components/AcademicYearManagerModal";
 import { BackupRestoreModal, BackupPayloadData } from "./components/BackupRestoreModal";
 import { AdminUserManagement } from "./components/AdminUserManagement";
@@ -1177,6 +1178,17 @@ export default function App() {
             assignments={filteredAssignments}
             submissions={filteredSubmissions}
             onSaveSubmission={handleSaveSubmission}
+          />
+        )}
+
+        {activeTab === "score-summary" && (
+          <ScoreSummaryTable
+            subjects={filteredSubjects}
+            students={filteredStudents}
+            assignments={filteredAssignments}
+            submissions={filteredSubmissions}
+            selectedTerm={selectedTerm}
+            selectedAcademicYear={selectedAcademicYear}
           />
         )}
 

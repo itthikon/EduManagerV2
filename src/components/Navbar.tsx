@@ -19,6 +19,7 @@ import {
   Crown,
   ShieldCheck,
   Database,
+  Award,
 } from "lucide-react";
 import { loginWithGoogle, logoutUser, getAuthErrorMessage, SUPER_ADMIN_UID } from "../lib/firebase";
 import { UserProfile, cleanYear } from "../types";
@@ -87,6 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: "students", label: "STUDENTS & QR CODE", icon: Users },
     { id: "assignments", label: "ASSIGNMENTS", icon: GraduationCap },
     { id: "grading", label: "SCANNER & GRADING", icon: QrCode },
+    { id: "score-summary", label: "สรุปผลคะแนน & เกณฑ์", icon: Award },
     { id: "line-notify", label: "LINE NOTIFY API", icon: Bell },
     ...(isAdmin ? [{ id: "admin-users", label: "ADMIN (จัดการสิทธิ์)", icon: Crown }] : []),
   ];
