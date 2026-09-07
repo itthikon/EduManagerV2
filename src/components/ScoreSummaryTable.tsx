@@ -11,9 +11,11 @@ import {
   Sliders,
   Check,
   Filter,
+  FileDown,
 } from "lucide-react";
 import { Assignment, Student, Subject, Submission, StudentGradeSummary } from "../types";
 import { calculateStudentGradeSummary } from "../lib/gradeCalculator";
+import { exportScoreSummaryPDF } from "../lib/pdfGenerator";
 
 interface ScoreSummaryTableProps {
   subjects: Subject[];
@@ -36,6 +38,17 @@ export const ScoreSummaryTable: React.FC<ScoreSummaryTableProps> = ({
   const [selectedClassRoom, setSelectedClassRoom] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [passThresholdPct, setPassThresholdPct] = useState<number>(50);
+  const [visibleColumns, setVisibleColumns] = useState({
+    preMidterm: true,
+    midterm: true,
+    postMidterm: true,
+    final: true,
+    total: true,
+    grade: true,
+    status: true,
+  });
+  const [showScoreDetails, setShowScoreDetails] = useState<boolean>(true);
+  const [showRealWeightedScore, setShowRealWeightedScore] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
 
   // Filter subjects based on term & year if applicable
@@ -192,6 +205,11 @@ export const ScoreSummaryTable: React.FC<ScoreSummaryTableProps> = ({
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const handleExportPDF = () => {
+    if (!currentSubject) return;
+    exportScoreSummaryPDF(currentSubject, selectedClassRoom, passThresholdPct, studentSummaries);
+  };
+
   return (
     <div className="space-y-6 font-['Geist'] text-white">
       {/* Header Info */}
@@ -209,23 +227,34 @@ export const ScoreSummaryTable: React.FC<ScoreSummaryTableProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={handleCopyLineReport}
-          disabled={studentSummaries.length === 0}
-          className="bg-[#00FF66] hover:bg-[#00DD55] disabled:opacity-50 text-black font-['Geist_Mono'] font-extrabold text-xs uppercase px-5 py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(0,255,102,0.2)] flex items-center gap-2"
-        >
-          {copied ? (
-            <>
-              <Check className="w-4 h-4 stroke-[3]" />
-              <span>คัดลอกสำเร็จแล้ว!</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-4 h-4 stroke-[2.5]" />
-              <span>คัดลอกรายงานส่ง LINE</span>
-            </>
-          )}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleExportPDF}
+            disabled={studentSummaries.length === 0}
+            className="bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-black font-['Geist_Mono'] font-extrabold text-xs uppercase px-4 py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] flex items-center gap-2"
+          >
+            <FileDown className="w-4 h-4 stroke-[2.5]" />
+            <span>EXPORT PDF</span>
+          </button>
+
+          <button
+            onClick={handleCopyLineReport}
+            disabled={studentSummaries.length === 0}
+            className="bg-[#00FF66] hover:bg-[#00DD55] disabled:opacity-50 text-black font-['Geist_Mono'] font-extrabold text-xs uppercase px-5 py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(0,255,102,0.2)] flex items-center gap-2"
+          >
+            {copied ? (
+              <>
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>คัดลอกสำเร็จแล้ว!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4 stroke-[2.5]" />
+                <span>คัดลอกรายงานส่ง LINE</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Filter Controls Bar */}
@@ -321,30 +350,107 @@ export const ScoreSummaryTable: React.FC<ScoreSummaryTableProps> = ({
 
         {/* Statistical Summary Pills */}
         {currentSubject && (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-3 border-t border-white/10">
-            <div className="bg-black/40 border border-white/10 rounded-xl p-3">
-              <div className="text-[11px] text-zinc-400 font-['Geist_Mono']">👥 นักเรียนทั้งหมด</div>
-              <div className="text-lg font-bold text-white mt-1">{stats.total} คน</div>
-            </div>
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
-              <div className="text-[11px] text-emerald-400 font-['Geist_Mono']">✅ ผ่านเกณฑ์ ({passThresholdPct}%)</div>
-              <div className="text-lg font-bold text-emerald-300 mt-1">
-                {stats.passed} คน ({stats.passRate.toFixed(1)}%)
+          <div className="space-y-3 pt-3 border-t border-white/10">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="bg-black/40 border border-white/10 rounded-xl p-3">
+                <div className="text-[11px] text-zinc-400 font-['Geist_Mono']">👥 นักเรียนทั้งหมด</div>
+                <div className="text-lg font-bold text-white mt-1">{stats.total} คน</div>
+              </div>
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3">
+                <div className="text-[11px] text-emerald-400 font-['Geist_Mono']">✅ ผ่านเกณฑ์ ({passThresholdPct}%)</div>
+                <div className="text-lg font-bold text-emerald-300 mt-1">
+                  {stats.passed} คน ({stats.passRate.toFixed(1)}%)
+                </div>
+              </div>
+              <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
+                <div className="text-[11px] text-rose-400 font-['Geist_Mono']">❌ ต่ำกว่าเกณฑ์</div>
+                <div className="text-lg font-bold text-rose-300 mt-1">{stats.failed} คน</div>
+              </div>
+              <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3">
+                <div className="text-[11px] text-cyan-400 font-['Geist_Mono']">📈 คะแนนเฉลี่ย</div>
+                <div className="text-lg font-bold text-cyan-300 mt-1">{stats.avgScore.toFixed(1)}%</div>
+              </div>
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 col-span-2 sm:col-span-1">
+                <div className="text-[11px] text-purple-400 font-['Geist_Mono']">⚖️ สัดส่วนคะแนน (ก่อน/กลาง/หลัง/ปลาย)</div>
+                <div className="text-xs font-bold text-purple-200 mt-1 font-['Geist_Mono']">
+                  {currentSubject.scoreWeights.preMidterm || 30}% / {currentSubject.scoreWeights.midterm || 20}% / {currentSubject.scoreWeights.postMidterm || 30}% / {currentSubject.scoreWeights.final || 20}%
+                </div>
               </div>
             </div>
-            <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">
-              <div className="text-[11px] text-rose-400 font-['Geist_Mono']">❌ ต่ำกว่าเกณฑ์</div>
-              <div className="text-lg font-bold text-rose-300 mt-1">{stats.failed} คน</div>
+
+            {/* Column Visibility Filter Bar */}
+            <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
+              <span className="text-zinc-400 font-['Geist_Mono'] mr-1 flex items-center gap-1.5">
+                👁️ เลือกคอลัมน์คะแนนที่ต้องการแสดง:
+              </span>
+              {[
+                { key: "preMidterm", label: "1. ก่อนกลางภาค" },
+                { key: "midterm", label: "2. กลางภาค" },
+                { key: "postMidterm", label: "3. หลังกลางภาค" },
+                { key: "final", label: "4. ปลายภาค" },
+                { key: "total", label: "รวมสะสม" },
+                { key: "grade", label: "เกรด" },
+                { key: "status", label: "5. ผลประเมิน" },
+              ].map((col) => (
+                <button
+                  key={col.key}
+                  type="button"
+                  onClick={() =>
+                    setVisibleColumns({
+                      ...visibleColumns,
+                      [col.key]: !(visibleColumns as any)[col.key],
+                    })
+                  }
+                  className={`px-3 py-1.5 rounded-lg font-['Geist_Mono'] font-bold text-[11px] transition-all flex items-center gap-1.5 ${
+                    (visibleColumns as any)[col.key]
+                      ? "bg-[#00FF66]/15 border border-[#00FF66]/40 text-[#00FF66]"
+                      : "bg-black/40 border border-white/10 text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  <span>{(visibleColumns as any)[col.key] ? "✓" : "○"}</span>
+                  <span>{col.label}</span>
+                </button>
+              ))}
             </div>
-            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-3">
-              <div className="text-[11px] text-cyan-400 font-['Geist_Mono']">📈 คะแนนเฉลี่ย</div>
-              <div className="text-lg font-bold text-cyan-300 mt-1">{stats.avgScore.toFixed(1)}%</div>
+
+            {/* Toggle Switch for Item Score Details */}
+            <div className="flex items-center justify-between pt-3 mt-2 border-t border-white/10 text-xs">
+              <span className="text-zinc-300 font-['Geist_Mono'] flex items-center gap-1.5">
+                🎚️ แสดงสัดส่วนเปอร์เซ็นต์คะแนนย่อยในแต่ละช่อง (Item Detail):
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowScoreDetails(!showScoreDetails)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                  showScoreDetails ? "bg-[#00FF66]" : "bg-zinc-700"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-black transition-transform ${
+                    showScoreDetails ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
             </div>
-            <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 col-span-2 sm:col-span-1">
-              <div className="text-[11px] text-purple-400 font-['Geist_Mono']">⚖️ สัดส่วนคะแนน (ก่อน/กลาง/หลัง/ปลาย)</div>
-              <div className="text-xs font-bold text-purple-200 mt-1 font-['Geist_Mono']">
-                {currentSubject.scoreWeights.preMidterm || 30}% / {currentSubject.scoreWeights.midterm || 20}% / {currentSubject.scoreWeights.postMidterm || 30}% / {currentSubject.scoreWeights.final || 20}%
-              </div>
+
+            {/* Toggle Switch for Real Weighted Score */}
+            <div className="flex items-center justify-between pt-2 text-xs">
+              <span className="text-zinc-300 font-['Geist_Mono'] flex items-center gap-1.5">
+                🎯 สลับแสดงคะแนนจริงตามน้ำหนัก (Real Weighted Score):
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowRealWeightedScore(!showRealWeightedScore)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                  showRealWeightedScore ? "bg-cyan-400" : "bg-zinc-700"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-black transition-transform ${
+                    showRealWeightedScore ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
             </div>
           </div>
         )}
@@ -360,35 +466,49 @@ export const ScoreSummaryTable: React.FC<ScoreSummaryTableProps> = ({
                   <th className="py-3.5 px-4 text-center w-14">เลขที่</th>
                   <th className="py-3.5 px-4">รหัส / ชื่อ - นามสกุล</th>
                   <th className="py-3.5 px-4 text-center">ห้อง</th>
-                  <th className="py-3.5 px-4 text-center bg-white/[0.02]">
-                    1. ก่อนกลางภาค
-                    <span className="block text-[9px] text-zinc-500 font-normal">
-                      ({currentSubject.scoreWeights.preMidterm || 30}%)
-                    </span>
-                  </th>
-                  <th className="py-3.5 px-4 text-center bg-white/[0.04]">
-                    2. กลางภาค
-                    <span className="block text-[9px] text-zinc-500 font-normal">
-                      ({currentSubject.scoreWeights.midterm || 20}%)
-                    </span>
-                  </th>
-                  <th className="py-3.5 px-4 text-center bg-white/[0.02]">
-                    3. หลังกลางภาค
-                    <span className="block text-[9px] text-zinc-500 font-normal">
-                      ({currentSubject.scoreWeights.postMidterm || 30}%)
-                    </span>
-                  </th>
-                  <th className="py-3.5 px-4 text-center bg-white/[0.04]">
-                    4. ปลายภาค
-                    <span className="block text-[9px] text-zinc-500 font-normal">
-                      ({currentSubject.scoreWeights.final || 20}%)
-                    </span>
-                  </th>
-                  <th className="py-3.5 px-4 text-center">รวมสะสม</th>
-                  <th className="py-3.5 px-4 text-center">เกรด</th>
-                  <th className="py-3.5 px-4 text-center">
-                    5. สรุปผลตามเกณฑ์ ({passThresholdPct}%)
-                  </th>
+                  {visibleColumns.preMidterm && (
+                    <th className="py-3.5 px-4 text-center bg-white/[0.02]">
+                      1. ก่อนกลางภาค
+                      <span className="block text-[9px] text-zinc-500 font-normal">
+                        ({currentSubject.scoreWeights.preMidterm || 30}%)
+                      </span>
+                    </th>
+                  )}
+                  {visibleColumns.midterm && (
+                    <th className="py-3.5 px-4 text-center bg-white/[0.04]">
+                      2. กลางภาค
+                      <span className="block text-[9px] text-zinc-500 font-normal">
+                        ({currentSubject.scoreWeights.midterm || 20}%)
+                      </span>
+                    </th>
+                  )}
+                  {visibleColumns.postMidterm && (
+                    <th className="py-3.5 px-4 text-center bg-white/[0.02]">
+                      3. หลังกลางภาค
+                      <span className="block text-[9px] text-zinc-500 font-normal">
+                        ({currentSubject.scoreWeights.postMidterm || 30}%)
+                      </span>
+                    </th>
+                  )}
+                  {visibleColumns.final && (
+                    <th className="py-3.5 px-4 text-center bg-white/[0.04]">
+                      4. ปลายภาค
+                      <span className="block text-[9px] text-zinc-500 font-normal">
+                        ({currentSubject.scoreWeights.final || 20}%)
+                      </span>
+                    </th>
+                  )}
+                  {visibleColumns.total && (
+                    <th className="py-3.5 px-4 text-center">รวมสะสม</th>
+                  )}
+                  {visibleColumns.grade && (
+                    <th className="py-3.5 px-4 text-center">เกรด</th>
+                  )}
+                  {visibleColumns.status && (
+                    <th className="py-3.5 px-4 text-center">
+                      5. สรุปผลตามเกณฑ์ ({passThresholdPct}%)
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-xs">
@@ -413,70 +533,104 @@ export const ScoreSummaryTable: React.FC<ScoreSummaryTableProps> = ({
                         {s.student.classRoom}
                       </td>
 
-      {/* 1. Pre-midterm */}
-                      <td className="py-3 px-4 text-center font-['Geist_Mono'] bg-white/[0.02]">
-                        <div className="font-bold text-white">
-                          {s.preMidtermScore} / {s.preMidtermMax}
-                        </div>
-                        <div className="text-[10px] text-[#00FF66] font-bold mt-0.5">
-                          ได้ {s.preMidtermMax > 0 ? ((s.preMidtermScore / s.preMidtermMax) * wPre).toFixed(1) : "0.0"} / {wPre}%
-                        </div>
-                      </td>
+                      {/* 1. Pre-midterm */}
+                      {visibleColumns.preMidterm && (() => {
+                        const preWVal = s.preMidtermMax > 0 ? ((s.preMidtermScore / s.preMidtermMax) * wPre).toFixed(1) : "0.0";
+                        return (
+                          <td className="py-3 px-4 text-center font-['Geist_Mono'] bg-white/[0.02]">
+                            <div className="font-bold text-white">
+                              {showRealWeightedScore ? `${preWVal} / ${wPre}` : `${s.preMidtermScore} / ${s.preMidtermMax}`}
+                            </div>
+                            {showScoreDetails && !showRealWeightedScore && (
+                              <div className="inline-block px-1.5 py-0.5 rounded bg-[#00FF66]/10 border border-[#00FF66]/30 text-[10px] text-[#00FF66] font-bold mt-1 shadow-sm">
+                                ได้ {preWVal} / {wPre}%
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })()}
 
                       {/* 2. Midterm */}
-                      <td className="py-3 px-4 text-center font-['Geist_Mono'] bg-white/[0.04]">
-                        <div className="font-bold text-purple-300">
-                          {s.midtermScore} / {s.midtermMax}
-                        </div>
-                        <div className="text-[10px] text-purple-400 font-bold mt-0.5">
-                          ได้ {s.midtermMax > 0 ? ((s.midtermScore / s.midtermMax) * wMid).toFixed(1) : "0.0"} / {wMid}%
-                        </div>
-                      </td>
+                      {visibleColumns.midterm && (() => {
+                        const midWVal = s.midtermMax > 0 ? ((s.midtermScore / s.midtermMax) * wMid).toFixed(1) : "0.0";
+                        return (
+                          <td className="py-3 px-4 text-center font-['Geist_Mono'] bg-white/[0.04]">
+                            <div className="font-bold text-purple-300">
+                              {showRealWeightedScore ? `${midWVal} / ${wMid}` : `${s.midtermScore} / ${s.midtermMax}`}
+                            </div>
+                            {showScoreDetails && !showRealWeightedScore && (
+                              <div className="inline-block px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-[10px] text-purple-300 font-bold mt-1 shadow-sm">
+                                ได้ {midWVal} / {wMid}%
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })()}
 
                       {/* 3. Post-midterm */}
-                      <td className="py-3 px-4 text-center font-['Geist_Mono'] bg-white/[0.02]">
-                        <div className="font-bold text-white">
-                          {s.postMidtermScore} / {s.postMidtermMax}
-                        </div>
-                        <div className="text-[10px] text-[#00FF66] font-bold mt-0.5">
-                          ได้ {s.postMidtermMax > 0 ? ((s.postMidtermScore / s.postMidtermMax) * wPost).toFixed(1) : "0.0"} / {wPost}%
-                        </div>
-                      </td>
+                      {visibleColumns.postMidterm && (() => {
+                        const postWVal = s.postMidtermMax > 0 ? ((s.postMidtermScore / s.postMidtermMax) * wPost).toFixed(1) : "0.0";
+                        return (
+                          <td className="py-3 px-4 text-center font-['Geist_Mono'] bg-white/[0.02]">
+                            <div className="font-bold text-white">
+                              {showRealWeightedScore ? `${postWVal} / ${wPost}` : `${s.postMidtermScore} / ${s.postMidtermMax}`}
+                            </div>
+                            {showScoreDetails && !showRealWeightedScore && (
+                              <div className="inline-block px-1.5 py-0.5 rounded bg-[#00FF66]/10 border border-[#00FF66]/30 text-[10px] text-[#00FF66] font-bold mt-1 shadow-sm">
+                                ได้ {postWVal} / {wPost}%
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })()}
 
                       {/* 4. Final */}
-                      <td className="py-3 px-4 text-center font-['Geist_Mono'] bg-white/[0.04]">
-                        <div className="font-bold text-rose-300">
-                          {s.finalScore} / {s.finalMax}
-                        </div>
-                        <div className="text-[10px] text-rose-400 font-bold mt-0.5">
-                          ได้ {s.finalMax > 0 ? ((s.finalScore / s.finalMax) * wFin).toFixed(1) : "0.0"} / {wFin}%
-                        </div>
-                      </td>
+                      {visibleColumns.final && (() => {
+                        const finWVal = s.finalMax > 0 ? ((s.finalScore / s.finalMax) * wFin).toFixed(1) : "0.0";
+                        return (
+                          <td className="py-3 px-4 text-center font-['Geist_Mono'] bg-white/[0.04]">
+                            <div className="font-bold text-rose-300">
+                              {showRealWeightedScore ? `${finWVal} / ${wFin}` : `${s.finalScore} / ${s.finalMax}`}
+                            </div>
+                            {showScoreDetails && !showRealWeightedScore && (
+                              <div className="inline-block px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-[10px] text-rose-300 font-bold mt-1 shadow-sm">
+                                ได้ {finWVal} / {wFin}%
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })()}
 
                       {/* Total Percentage */}
-                      <td className="py-3 px-4 text-center font-['Geist_Mono'] font-extrabold text-white">
-                        {s.totalPercentage}%
-                      </td>
+                      {visibleColumns.total && (
+                        <td className="py-3 px-4 text-center font-['Geist_Mono'] font-extrabold text-white">
+                          {s.totalPercentage}%
+                        </td>
+                      )}
 
                       {/* Grade */}
-                      <td className="py-3 px-4 text-center">
-                        <span className="px-2 py-1 rounded bg-[#00FF66]/10 border border-[#00FF66]/30 text-[#00FF66] font-['Geist_Mono'] font-bold text-xs">
-                          {s.grade}
-                        </span>
-                      </td>
+                      {visibleColumns.grade && (
+                        <td className="py-3 px-4 text-center">
+                          <span className="px-2 py-1 rounded bg-[#00FF66]/10 border border-[#00FF66]/30 text-[#00FF66] font-['Geist_Mono'] font-bold text-xs">
+                            {s.grade}
+                          </span>
+                        </td>
+                      )}
 
                       {/* Pass / Fail based on Threshold */}
-                      <td className="py-3 px-4 text-center">
-                        {s.isPass ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[11px]">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> ผ่านเกณฑ์
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-[11px]">
-                            <AlertTriangle className="w-3.5 h-3.5" /> ต่ำกว่าเกณฑ์
-                          </span>
-                        )}
-                      </td>
+                      {visibleColumns.status && (
+                        <td className="py-3 px-4 text-center">
+                          {s.isPass ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[11px]">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> ผ่านเกณฑ์
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-[11px]">
+                              <AlertTriangle className="w-3.5 h-3.5" /> ต่ำกว่าเกณฑ์
+                            </span>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))
                 ) : (

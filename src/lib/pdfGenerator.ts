@@ -1,7 +1,9 @@
 import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 import JSZip from "jszip";
-import { Student } from "../types";
+import html2canvas from "html2canvas";
+import { Student, Subject } from "../types";
 
 export type ExportLayoutMode = "a4_grid" | "single_per_page";
 export type PageDimension = "a4" | "a5" | "card_85x54" | "sticker_40x40";
@@ -451,3 +453,115 @@ export async function generateStudentQRPdf(
     title: schoolOrTeacherTitle,
   });
 }
+
+export async function exportScoreSummaryPDF(
+  subject: Subject,
+  classRoom: string,
+  passThresholdPct: number,
+  studentSummaries: any[]
+) {
+  const container = document.createElement("div");
+  container.style.position = "absolute";
+  container.style.left = "-9999px";
+  container.style.top = "0";
+  container.style.width = "1200px";
+  container.style.backgroundColor = "#ffffff";
+  container.style.color = "#111827";
+  container.style.padding = "40px";
+  container.style.fontFamily = "'Sarabun', 'Prompt', 'Geist', sans-serif";
+
+  const weights = subject.scoreWeights || { preMidterm: 30, midterm: 20, postMidterm: 30, final: 20 };
+  const wPre = weights.preMidterm ?? 30;
+  const wMid = weights.midterm ?? 20;
+  const wPost = weights.postMidterm ?? 30;
+  const wFin = weights.final ?? 20;
+
+  container.innerHTML = `
+    <div style="margin-bottom: 24px; border-bottom: 2px solid #374151; padding-bottom: 16px;">
+      <h1 style="font-size: 24px; font-weight: bold; margin: 0 0 8px 0; color: #111827;">รายงานสรุปผลคะแนนรายวิชา & เกณฑ์การผ่าน</h1>
+      <div style="font-size: 14px; color: #4b5563; display: flex; gap: 24px; flex-wrap: wrap;">
+        <div><strong>รหัสวิชา:</strong> [${subject.code}] ${subject.name}</div>
+        <div><strong>ห้องเรียน:</strong> ${classRoom === "ALL" ? "ทุกห้องเรียน" : classRoom}</div>
+        <div><strong>เกณฑ์ผ่าน:</strong> ${passThresholdPct}%</div>
+        <div><strong>จำนวนนักเรียน:</strong> ${studentSummaries.length} คน</div>
+        <div><strong>สัดส่วนคะแนน:</strong> ก่อนกลางภาค (${wPre}%) / กลางภาค (${wMid}%) / หลังกลางภาค (${wPost}%) / ปลายภาค (${wFin}%)</div>
+      </div>
+    </div>
+    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+      <thead>
+        <tr style="background-color: #1f2937; color: #ffffff; text-align: left;">
+          <th style="padding: 10px; border: 1px solid #374151; text-align: center; width: 50px;">เลขที่</th>
+          <th style="padding: 10px; border: 1px solid #374151; text-align: center; width: 100px;">รหัสประจำตัว</th>
+          <th style="padding: 10px; border: 1px solid #374151;">ชื่อ - นามสกุล</th>
+          <th style="padding: 10px; border: 1px solid #374151; text-align: center; width: 60px;">ห้อง</th>
+          <th style="padding: 10px; border: 1px solid #374151; text-align: center;">ก่อนกลางภาค (${wPre}%)</th>
+          <th style="padding: 10px; border: 1px solid #374151; text-align: center;">กลางภาค (${wMid}%)</th>
+          <th style="padding: 10px; border: 1px solid #374151; text-align: center;">หลังกลางภาค (${wPost}%)</th>
+          <th style="padding: 10px; border: 1px solid #374151; text-align: center;">ปลายภาค (${wFin}%)</th>
+          <th style="padding: 10px; border: 1px solid #374151; text-align: center;">รวมสะสม</th>
+          <th style="padding: 10px; border: 1px solid #374151; text-align: center;">เกรด</th>
+          <th style="padding: 10px; border: 1px solid #374151; text-align: center;">สถานะ</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${studentSummaries.map((s, idx) => {
+          const preW = s.preMidtermMax > 0 ? ((s.preMidtermScore / s.preMidtermMax) * wPre).toFixed(1) : "0.0";
+          const midW = s.midtermMax > 0 ? ((s.midtermScore / s.midtermMax) * wMid).toFixed(1) : "0.0";
+          const postW = s.postMidtermMax > 0 ? ((s.postMidtermScore / s.postMidtermMax) * wPost).toFixed(1) : "0.0";
+          const finW = s.finalMax > 0 ? ((s.finalScore / s.finalMax) * wFin).toFixed(1) : "0.0";
+
+          return `
+            <tr style="border-bottom: 1px solid #e5e7eb; background-color: ${idx % 2 === 0 ? '#ffffff' : '#f9fafb'};">
+              <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">${s.student.number || idx + 1}</td>
+              <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">${s.student.studentId || "-"}</td>
+              <td style="padding: 8px; border: 1px solid #e5e7eb; font-weight: 500;">${s.student.prefix || ""} ${s.student.firstName} ${s.student.lastName}</td>
+              <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">${s.student.classRoom || "-"}</td>
+              <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">${s.preMidtermScore}/${s.preMidtermMax}<br/><span style="font-size: 10px; color: #047857; font-weight: bold;">ได้ ${preW}/${wPre}%</span></td>
+              <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">${s.midtermScore}/${s.midtermMax}<br/><span style="font-size: 10px; color: #6d28d9; font-weight: bold;">ได้ ${midW}/${wMid}%</span></td>
+              <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">${s.postMidtermScore}/${s.postMidtermMax}<br/><span style="font-size: 10px; color: #047857; font-weight: bold;">ได้ ${postW}/${wPost}%</span></td>
+              <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center;">${s.finalScore}/${s.finalMax}<br/><span style="font-size: 10px; color: #b91c1c; font-weight: bold;">ได้ ${finW}/${wFin}%</span></td>
+              <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center; font-weight: bold;">${s.totalPercentage}%</td>
+              <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center; font-weight: bold; color: #047857;">${s.grade}</td>
+              <td style="padding: 8px; border: 1px solid #e5e7eb; text-align: center; font-weight: bold; color: ${s.isPass ? '#047857' : '#b91c1c'};">${s.isPass ? 'ผ่านเกณฑ์' : 'ต่ำกว่าเกณฑ์'}</td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+  `;
+
+  document.body.appendChild(container);
+
+  try {
+    const canvas = await html2canvas(container, { scale: 2, useCORS: true });
+    document.body.removeChild(container);
+
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("landscape", "mm", "a4");
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+    let heightLeft = pdfHeight;
+    let position = 0;
+    let pageHeight = pdf.internal.pageSize.getHeight();
+
+    pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft >= 0) {
+      position = heightLeft - pdfHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+    }
+
+    pdf.save(`Score_Summary_${subject.code}_${classRoom.replace(/\//g, "-")}.pdf`);
+  } catch (err) {
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
+    console.error("PDF Export error:", err);
+    alert("เกิดข้อผิดพลาดในการส่งออก PDF กรุณาลองใหม่อีกครั้ง");
+  }
+}
+
